@@ -1,0 +1,2 @@
+File icons: vscode-icons (https://github.com/vscode-icons/vscode-icons),
+icons licensed CC BY-SA 4.0, packed into font/DotIcons.ttf by source/tools/gen_icons.py.

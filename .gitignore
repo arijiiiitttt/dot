@@ -1,0 +1,53 @@
+# ---- Build output -------------------------------------------------------
+/bin32/
+/bin64/
+/out/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# ---- Go -----------------------------------------------------------------
+/vendor/
+go.work
+go.work.sum
+coverage.txt
+*.prof
+
+# ---- Icon generator (tools/gen_icons.py) --------------------------------
+# A checkout of https://github.com/vscode-icons/vscode-icons used as input
+/vscode-icons/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ---- Packaging ----------------------------------------------------------
+*.zip
+*.7z
+
+# ---- Secrets / local config ---------------------------------------------
+.env
+.env.*
+!.env.example
+
+# ---- Editors / IDEs -----------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- OS junk ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Logs / temp --------------------------------------------------------
+*.log
+tmp/
+temp/
