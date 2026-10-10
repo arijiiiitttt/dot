@@ -12,7 +12,7 @@
 </div>
 
 <p align="center">
-  <b>dot</b>  a VS Code style code editor that lives in your <b>terminal</b>
+  <b>dot</b>  a VS Code style code editor that runs in your <b>terminal</b>
 </p>
 
 <p align="center">
