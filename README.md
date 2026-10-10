@@ -1,15 +1,15 @@
-<p align="center">
+<div align="center">
 
-```
+<pre>
 ██████╗  ██████╗ ████████╗
 ██╔══██╗██╔═══██╗╚══██╔══╝
-██║  ██║██║   ██║   ██║
-██║  ██║██║   ██║   ██║
-██████╔╝╚██████╔╝   ██║
-╚═════╝  ╚═════╝    ╚═╝
-```
+██║  ██║██║   ██║   ██║   
+██║  ██║██║   ██║   ██║   
+██████╔╝╚██████╔╝   ██║   
+╚═════╝  ╚═════╝    ╚═╝   
+</pre>
 
-</p>
+</div>
 
 <p align="center">
   <b>dot</b>  a VS Code style code editor that lives in your <b>terminal</b>
@@ -17,8 +17,8 @@
 
 <p align="center">
   <a href="#run-it"><img alt="Go" src="https://img.shields.io/badge/go-1.20-00ADD8?style=flat-square&logo=go&logoColor=white" /></a>
-  <a href="#run-it"><img alt="Windows" src="https://img.shields.io/badge/windows-7%20%E2%86%92%2011-0078D6?style=flat-square&logo=windows&logoColor=white" /></a>
   <a href="#architecture"><img alt="Dependencies" src="https://img.shields.io/badge/dependencies-none-2ea44f?style=flat-square" /></a>
+  <a href="#run-it"><img alt="Windows" src="https://img.shields.io/badge/windows-7%20%E2%86%92%2011-0078D6?style=flat-square&logo=windows&logoColor=white" /></a>
   <a href="#file-icons"><img alt="Icons" src="https://img.shields.io/badge/icons-vscode--icons-007ACC?style=flat-square" /></a>
 </p>
 
