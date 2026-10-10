@@ -92,6 +92,17 @@ Open a **new** terminal and type:
 
 ## Using Dot
 
+### 1. Initial Look :
+<img src="public/images/dot1.png"/>
+
+### 2. Settings Tab :
+<img src="public/images/dot2.png"/>
+
+### 3. Command Palette :
+<img src="public/images/dot3.png"/>
+
+<br/>
+
 | Key | What it does |
 | --- | --- |
 | **Ctrl+N / Ctrl+S / Ctrl+W** | New file / save / close tab |
