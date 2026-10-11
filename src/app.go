@@ -98,7 +98,7 @@ type App struct {
 }
 
 func NewApp(be Backend, root string) *App {
-	a := &App{be: be, root: root, sideVis: true, panelVis: false, sideW: 26, panelH: 10}
+	a := &App{be: be, root: root, sideVis: true, panelVis: false, sideW: 12, panelH: 10}
 	a.exp = NewExplorer(root)
 	a.srch = &Search{inputFoc: true}
 	a.find = &FindState{}

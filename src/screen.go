@@ -178,7 +178,12 @@ func (v *vtRenderer) Render(s *Screen, cx, cy int, show bool) string {
 			}
 		}
 		b.WriteString("\x1b[" + strconv.Itoa(y+1) + ";1H")
-		for _, c := range row {
+		skip := false
+		for xi, c := range row {
+			if skip { // cell covered by a double-width glyph, see isWide
+				skip = false
+				continue
+			}
 			f, g := paletteRGB[c.Fg], paletteRGB[c.Bg]
 			if c.FX != 0 {
 				f = c.FX & 0xffffff
@@ -196,6 +201,12 @@ func (v *vtRenderer) Render(s *Screen, cx, cy int, show bool) string {
 				r = ' '
 			}
 			b.WriteRune(r)
+			if isWide(r) && xi+1 < len(row) {
+				// Windows Terminal draws these glyphs two cells wide: skip the covered cell and
+				// jump to the next column explicitly so the rest of the row stays aligned
+				skip = true
+				b.WriteString("\x1b[" + strconv.Itoa(y+1) + ";" + strconv.Itoa(xi+3) + "H")
+			}
 		}
 	}
 	if show {
@@ -205,3 +216,7 @@ func (v *vtRenderer) Render(s *Screen, cx, cy int, show bool) string {
 	v.pw, v.ph = s.W, s.H
 	return b.String()
 }
+
+// isWide reports runes that Windows Terminal draws two cells wide although they look like
+// single symbols (the trigram characters, used by the activity-bar menu icon).
+func isWide(r rune) bool { return r >= 0x2630 && r <= 0x2637 }

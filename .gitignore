@@ -1,6 +1,7 @@
 # ---- Build output -------------------------------------------------------
 /bin32/
 /bin64/
+/binxp/
 /out/
 /dist/
 *.exe
@@ -23,7 +24,11 @@ coverage.txt
 /vscode-icons/
 __pycache__/
 *.pyc
-.venv/
+
+
+
+
+v/
 venv/
 
 # ---- Packaging ----------------------------------------------------------

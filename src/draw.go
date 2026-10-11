@@ -57,7 +57,7 @@ func (a *App) drawActivity() {
 	defer func() {
 		if l := &a.lay; l.actW > 0 {
 			y := a.H - 3
-			a.scr.Set(1, y, '☼', cDim, cBar)
+			a.scr.Set(1, y, '☼', cDim, cBar) // original char + position
 			a.hit(0, y, l.actW, 1, func() { a.openSettings() })
 		}
 	}()
@@ -73,22 +73,24 @@ func (a *App) drawActivity() {
 		fn     func()
 	}
 	icons := []ic{
-		{'≡', a.sideVis && a.sideView == 0, func() {
+		{'☰', a.sideVis && a.sideView == 0, func() {
 			if a.sideVis && a.sideView == 0 {
 				a.sideVis = false
 			} else {
 				a.sideVis, a.sideView, a.focus = true, 0, fSide
 			}
 		}},
-		{'○', a.sideVis && a.sideView == 1, func() {
+		{'⌕', a.sideVis && a.sideView == 1, func() {
 			if a.sideVis && a.sideView == 1 {
 				a.sideVis = false
 			} else {
 				cmdByID["view.search"].Run(a)
 			}
 		}},
-		{'►', false, func() { a.runFile() }},
-		{'»', a.panelVis && a.panelTab == 1, func() { cmdByID["view.terminal"].Run(a) }},
+		{'▶', false, func() { a.runFile() }},
+		{'›', a.panelVis && a.panelTab == 1, func() {
+			cmdByID["view.terminal"].Run(a)
+		}},
 	}
 	for i, ic := range icons {
 		y := 2 + i*2
@@ -174,7 +176,7 @@ func (a *App) drawSidebar() {
 			}
 			for _, d := range a.docs {
 				if d.Path == n.Path && d.Dirty {
-					s.Set(x+w-2, y, '•', cFg, bg)
+					s.Set(x+w-2, y, '•', cFg, bg) // last content column
 				}
 			}
 		}
@@ -239,7 +241,11 @@ func (a *App) drawTabs() {
 	l := &a.lay
 	s := a.scr
 	x0, w := l.edX, l.edW
-	s.Fill(x0, l.tabY, w, 1, ' ', cDim, cSide)
+	bg := cSide
+	if len(a.docs) == 0 {
+		bg = cBg
+	}
+	s.Fill(x0, l.tabY, w, 1, ' ', cDim, bg)
 	if len(a.docs) == 0 {
 		return
 	}
