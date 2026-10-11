@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<title>Dot Docs</title>
+<meta name="description" content="Documentation for Dot, a VS Code style code editor that runs in your terminal.">
+
+<!-- DM Sans -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap" rel="stylesheet">
+
+<!-- Tailwind CSS (Play CDN, no build step) -->
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans:  ['"DM Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          serif: ['"DM Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        },
+      },
+    },
+  };
+</script>
+<style type="text/tailwindcss">
+  @layer base {
+    html { color-scheme: light; -webkit-font-smoothing: antialiased; }
+    body { @apply bg-white font-sans; }
+  }
+  /* styles for the raw <p>, <code>, <kbd>, <b>, <a> inside the generated pages */
+  @layer components {
+    .doc p    { @apply text-[14.5px] leading-[1.8] text-[#555] mb-4 font-sans; }
+    .doc code { @apply font-mono text-xs bg-[#f4f4f2] px-1.5 py-0.5 rounded text-[#333]; }
+    .doc kbd  { @apply font-mono text-[11.5px] bg-white border border-[#ddd] border-b-2 rounded-[5px] px-1.5 py-px text-[#333] whitespace-nowrap; }
+    .doc b    { @apply font-semibold text-[#0d0d0d]; }
+    .doc a    { @apply underline decoration-[#ccc] underline-offset-2 hover:decoration-[#0d0d0d]; }
+    .doc .blk code { @apply bg-transparent p-0 text-inherit; }
+  }
+</style>
+</head>
+<body class="bg-white">
+
+<header id="hdr" class="sticky top-0 z-40 border-b border-[#ebebeb] bg-white transition-colors duration-200">
+  <div class="max-w-[1080px] mx-auto px-6 h-[54px] flex items-center justify-between">
+    <a href="#overview" class="flex items-center gap-2.5 no-underline">
+<img/>
+        <span class="font-serif text-lg text-[#0d0d0d]">Dot</span>
+      <span class="font-mono text-[10px] text-[#bbb] tracking-[0.08em] mt-0.5">docs</span>
+    </a>
+    <button id="menuBtn" class="bg-transparent border-none cursor-pointer text-[#888] p-1 md:hidden" aria-label="menu"></button>
+  </div>
+</header>
+
+<div class="max-w-[1080px] mx-auto px-6 flex gap-0 relative">
+  <aside id="side"></aside>
+  <main id="main" class="doc flex-1 min-w-0 max-w-[660px] pt-6 pb-20 md:pt-12 md:pl-12"></main>
+</div>
+
+<script>
+/* ── navigation ───────────────────────────────────────── */
+const NAV = [
+  {id:"overview",   label:"Overview",         group:"Introduction"},
+  {id:"install",    label:"Install & Run",    group:"Introduction"},
+  {id:"using",      label:"Using Dot",        group:"Introduction"},
+  {id:"menus",      label:"LazyVim-style Menus", group:"Features"},
+  {id:"panel",      label:"Terminal Panel",   group:"Features"},
+  {id:"images",     label:"Image Viewer",     group:"Features"},
+  {id:"themes",     label:"Themes",           group:"Features"},
+  {id:"shortcuts",  label:"Keyboard Shortcuts", group:"Features"},
+  {id:"icons",      label:"File Icons",       group:"Features"},
+  {id:"settings",   label:"Settings File",    group:"Reference"},
+  {id:"oldwin",     label:"Old Windows & XP", group:"Reference"},
+  {id:"arch",       label:"Architecture",     group:"Reference"},
+  {id:"build",      label:"Building & Extending", group:"Reference"},
+  {id:"trouble",    label:"Troubleshooting",  group:"Reference"},
+];
+
+/* ── syntax colouring (Dracula) ───────────────────────── */
+const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const TC = {k:"text-[#ff79c6]", s:"text-[#f1fa8c]", c:"text-[#6272a4]", n:"text-[#bd93f9]", a:"text-[#50fa7b]", v:"text-[#8be9fd]", p:"text-[#f8f8f2]"};
+const span = (t,x) => `<span class="${TC[t]}">${esc(x)}</span>`;
+
+function tokShell(line){
+  let out="", rest=line, m;
+  if((m=rest.match(/^(\s*)((?:#|::|REM\b).*)$/i))) return span("p",m[1])+span("c",m[2]);
+  if((m=rest.match(/^([$>]\s+)/))){out+=span("k",m[1]);rest=rest.slice(m[1].length)}
+  const kws=/^(npm|npx|node|cd|cp|mv|rm|mkdir|curl|git|go|set|python|pip|pio|dot|\.dot|dot\.exe|build|install)\b/i;
+  while(rest.length){
+    if((m=rest.match(/^("(?:[^"\\]|\\.)*"|'[^']*')/))){out+=span("s",m[1]);rest=rest.slice(m[1].length);continue}
+    if((m=rest.match(/^(--?[a-zA-Z][\w-]*)/))){out+=span("v",m[1]);rest=rest.slice(m[1].length);continue}
+    if((m=rest.match(/^(%[A-Za-z_]+%)/))){out+=span("v",m[1]);rest=rest.slice(m[1].length);continue}
+    if((m=rest.match(/^(scripts\\[\w]+\.bat)/))){out+=span("k",m[1]);rest=rest.slice(m[1].length);continue}
+    if((m=rest.match(/^(\d[\d.]*)\b/))){out+=span("n",m[1]);rest=rest.slice(m[1].length);continue}
+    if((m=rest.match(kws))){out+=span("k",m[1]);rest=rest.slice(m[1].length);continue}
+    if((m=rest.match(/^([A-Za-z]:\\[\w.\\-]*|[./~][\w./~\\-]+|[\w-]+\\[\w.\\-]*)/))){out+=span("s",m[1]);rest=rest.slice(m[1].length);continue}
+    if((m=rest.match(/^([|&=<>])/))){out+=span("k",m[1]);rest=rest.slice(1);continue}
+    if((m=rest.match(/^(\s+)/))){out+=span("p",m[1]);rest=rest.slice(m[1].length);continue}
+    m=rest.match(/^(\S+)/);out+=span("p",m[1]);rest=rest.slice(m[1].length);
+  }
+  return out;
+}
+function tokIni(line){
+  let m;
+  if((m=line.match(/^(\s*)(#.*)$/))) return span("p",m[1])+span("c",m[2]);
+  if((m=line.match(/^(\s*)([^=#]+?)(\s*=\s*)([^#]*?)(\s*)(#.*)?$/))){
+    let v=m[4], t=/^(true|false|on|off|auto)$/.test(v)?"k":/^\d/.test(v)?"n":"v";
+    return span("p",m[1])+span("a",m[2])+span("p",m[3])+span(t,v)+span("p",m[5])+(m[6]?span("c",m[6]):"");
+  }
+  return span("p",line);
+}
+function tokTree(line){
+  const m=line.match(/^(.*?)(\s{2,}.*)?$/);
+  const main=m[1], cm=m[2]||"";
+  const isDir=/\/\s*$/.test(main.trim());
+  return span(isDir?"a":"p",main)+(cm?span("c",cm):"");
+}
+const tokText = line => span("p",line);
+const TOK={shell:tokShell,ini:tokIni,tree:tokTree,text:tokText};
+const LANG={shell:"SHELL",ini:"INI",tree:"TREE",text:"TEXT"};
+
+/* ── components (Tailwind classes) ────────────────────── */
+const COPY_ICON='<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="4" y="1" width="7" height="8" rx="1.5" stroke="#6272a4" stroke-width="1.2"/><rect x="1" y="3" width="7" height="8" rx="1.5" stroke="#6272a4" stroke-width="1.2" fill="#181825"/></svg>';
+function Block(code,label,lang="shell"){
+  const lines=code.replace(/\n$/,"").split("\n");
+  const rows=lines.map((l,i)=>`<tr class="leading-[1.75]">
+    <td class="w-[42px] text-right pr-4 pl-3.5 select-none text-[#44475a] text-xs align-top tabular-nums font-mono">${i+1}</td>
+    <td class="pr-5 text-[12.5px] whitespace-pre align-top font-mono">${TOK[lang](l)||" "}</td></tr>`).join("");
+  return `<div class="blk my-4 rounded-[10px] overflow-hidden border border-[#313244] bg-[#1e1e2e]" data-code="${esc(code.replace(/\n$/,"")).replace(/"/g,"&quot;")}">
+    <div class="flex items-center justify-between px-3.5 py-2 bg-[#181825] border-b border-[#313244]">
+      <span class="text-[11px] tracking-[0.1em] text-[#6272a4] font-medium font-mono">${esc(label||LANG[lang])}</span>
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] tracking-[0.12em] text-[#6272a4] uppercase font-mono">${LANG[lang]}</span>
+        <button data-copy class="border border-[#313244] rounded-[5px] px-2 py-0.5 cursor-pointer text-[10px] font-mono tracking-[0.05em] transition-all duration-150 flex items-center gap-1 bg-transparent text-[#6272a4] hover:text-[#f8f8f2]" title="Copy">${COPY_ICON}<span>Copy</span></button>
+      </div>
+    </div>
+    <div class="overflow-x-auto py-3.5"><table class="border-collapse w-full table-fixed"><tbody>${rows}</tbody></table></div></div>`;
+}
+const H1=(t,s)=>`<h1 class="font-serif text-4xl font-normal tracking-tight text-[#0d0d0d] mb-2 leading-[1.15]">${t}</h1><div class="text-[15px] text-[#999] mb-8 font-sans leading-relaxed">${s}</div>`;
+const H2=t=>`<h2 class="font-mono text-[11px] font-medium tracking-[0.12em] uppercase text-[#888] mt-10 mb-3.5 border-t border-[#f0f0f0] pt-4">${t}</h2>`;
+const TAGC={"t-green":"bg-[#e8f5e9] text-[#2e7d32]","t-blue":"bg-[#e3f2fd] text-[#1565c0]","t-pink":"bg-[#fce4ec] text-[#880e4f]","t-amber":"bg-[#fff3e0] text-[#e65100]","":"bg-[#f4f4f2] text-[#666]"};
+const Tag=(t,c="")=>`<span class="inline-block text-[11px] font-medium font-mono px-2 py-0.5 rounded-full ${TAGC[c]||TAGC[""]} mr-1.5 mt-1">${t}</span>`;
+const Card=(title,desc,tag,tc="")=>`<div class="border border-[#ebebeb] rounded-[10px] px-[18px] py-4 mb-2.5 bg-white">
+  <div class="flex items-center justify-between mb-1.5 gap-2.5"><span class="font-sans text-sm font-semibold text-[#0d0d0d]">${title}</span>${tag?`<span class="shrink-0 inline-block text-[11px] font-medium font-mono px-2 py-0.5 rounded-full ${TAGC[tc]||TAGC[""]}">${tag}</span>`:""}</div>
+  <div class="text-[13.5px] text-[#777] leading-[1.65] font-sans">${desc}</div></div>`;
+const Step=(num,title,body,code)=>`<div class="mb-8"><div class="flex items-baseline gap-3 mb-2"><span class="font-mono text-[11px] text-[#ccc] tracking-[0.05em]">${num}</span><span class="font-serif text-xl text-[#0d0d0d]">${title}</span></div><p>${body}</p>${code||""}</div>`;
+const ROW="grid gap-3 px-4 py-2.5 items-start border-b border-[#f0f0f0] last:border-b-0 odd:bg-white even:bg-[#fafafa] max-md:grid-cols-1";
+const Rows2=(rows,head)=>`<div class="text-[12.5px] border border-[#ebebeb] rounded-[10px] overflow-hidden mb-[18px]">${head?`<div class="${ROW} grid-cols-[1.25fr_2.4fr] !bg-white font-mono text-[10px] tracking-[0.1em] uppercase text-[#aaa] max-md:hidden"><span>${head[0]}</span><span>${head[1]}</span></div>`:""}${rows.map(([a,b])=>`<div class="${ROW} grid-cols-[1.25fr_2.4fr]"><span class="font-mono text-[#0d0d0d] font-medium [overflow-wrap:anywhere]">${a}</span><span class="text-[#777] font-sans text-[13px] leading-[1.55]">${b}</span></div>`).join("")}</div>`;
+const Rows3=rows=>`<div class="text-[12.5px] border border-[#ebebeb] rounded-[10px] overflow-hidden mb-[18px]">${rows.map(([a,b,c])=>`<div class="${ROW} grid-cols-[1fr_2fr_1.4fr]"><span class="font-mono text-[#0d0d0d] font-medium">${a}</span><span class="text-[#777] font-sans text-[13px] leading-[1.55]">${b}</span><span class="text-[#aaa] font-mono text-[11.5px]">${c}</span></div>`).join("")}</div>`;
+const List=rows=>`<div class="text-[13.5px]">${rows.map(([n,d])=>`<div class="flex gap-4 py-2.5 border-b border-[#f4f4f4] max-md:flex-col max-md:gap-0.5"><span class="font-mono text-[12.5px] text-[#0d0d0d] w-[200px] shrink-0 pt-0.5 max-md:w-auto">${n}</span><span class="text-[#666] leading-[1.65] font-sans">${d}</span></div>`).join("")}</div>`;
+const K=s=>s.split(" / ").map(x=>`<kbd>${x}</kbd>`).join(" ");
+const NOTE=t=>`<div class="border border-[#f1e3b3] bg-[#fffbea] rounded-[10px] px-[18px] py-3.5 mb-[22px] text-[13.5px] leading-[1.7] text-[#7a5b00] font-sans">${t}</div>`;
+
+/* theme data (from src/theme.go): bg accent comment type red ctl func fg | side kw num var str bar sel dim */
+const THEMES=[
+ ["Dark+ (default)",[0x1e1e1e,0x007acc,0x6a9955,0x4ec9b0,0xf44747,0xc586c0,0xdcdcaa,0xd4d4d4,0x252526,0x569cd6,0xb5cea8,0x9cdcfe,0xce9178,0x3c3c3c,0x264f78,0x858585]],
+ ["Light+",[0xffffff,0x3aa0e8,0x008000,0x267f99,0xe51400,0xaf00db,0x795e26,0x1f1f1f,0xf3f3f3,0x0000ff,0x098658,0x001080,0xa31515,0xdddddd,0xadd6ff,0x6e6e6e]],
+ ["Monokai",[0x272822,0x4f7a28,0x75715e,0x66d9ef,0xf92672,0xf92672,0xa6e22e,0xf8f8f2,0x21221c,0xf92672,0xae81ff,0xfd971f,0xe6db74,0x1e1f1c,0x49483e,0x90908a]],
+ ["Solarized Dark",[0x002b36,0x1e6e99,0x586e75,0xb58900,0xdc322f,0xd33682,0x268bd2,0x93a1a1,0x073642,0x859900,0x2aa198,0x268bd2,0xcb4b16,0x0b3a47,0x094959,0x657b83]],
+ ["Dracula",[0x282a36,0x6272a4,0x6272a4,0x8be9fd,0xff5555,0xff79c6,0x50fa7b,0xf8f8f2,0x21222c,0xff79c6,0xbd93f9,0xffb86c,0xf1fa8c,0x191a21,0x44475a,0x7d8399]],
+ ["One Dark",[0x282c34,0x3b6ea5,0x5c6370,0xe5c07b,0xe06c75,0xc678dd,0x61afef,0xabb2bf,0x21252b,0xc678dd,0xd19a66,0xe06c75,0x98c379,0x2c313a,0x3e4451,0x7f848e]],
+ ["Nord",[0x2e3440,0x5e81ac,0x616e88,0x8fbcbb,0xbf616a,0x81a1c1,0x88c0d0,0xd8dee9,0x292e39,0x81a1c1,0xb48ead,0xeceff4,0xa3be8c,0x3b4252,0x434c5e,0x7b88a1]],
+ ["Gruvbox Dark",[0x282828,0x458588,0x928374,0xfabd2f,0xfb4934,0xfb4934,0xb8bb26,0xebdbb2,0x32302f,0xfb4934,0xd3869b,0x83a598,0x8ec07c,0x3c3836,0x504945,0xa89984]],
+ ["High Contrast",[0x000000,0x1a1aff,0x7ca668,0x4ec9b0,0xff3030,0xc586c0,0xdcdcaa,0xffffff,0x0a0a0a,0x569cd6,0xb5cea8,0x9cdcfe,0xce9178,0x202020,0x1f4e8a,0xc0c0c0]],
+];
+const hex=n=>"#"+n.toString(16).padStart(6,"0");
+function themeCards(){
+  /* colours come from the theme data, so they stay as inline styles */
+  return `<div class="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-2.5 mb-4">`+THEMES.map(([name,c])=>{
+    const [bg,acc,com,typ,red,ctl,fn,fg,side,kw,num,vr,str,bar,sel,dim]=c.map(hex);
+    return `<div class="border border-[#ebebeb] rounded-[10px] overflow-hidden bg-white">
+      <div class="flex h-[54px]">
+        <i class="basis-[14%] shrink-0" style="background:${bar}"></i>
+        <i class="basis-[14%] shrink-0" style="background:${side}"></i>
+        <div class="flex-1 px-2.5 py-2 font-mono text-[9.5px] leading-[1.5] whitespace-pre overflow-hidden" style="background:${bg};color:${fg}"><span style="color:${com}">// hi</span>\n<span style="color:${kw}">func</span> <span style="color:${fn}">main</span>() {\n  <span style="color:${typ}">x</span> := <span style="color:${str}">"dot"</span> <span style="color:${num}">42</span></div></div>
+      <div class="px-3 py-2 text-[12.5px] text-[#0d0d0d] font-medium flex justify-between items-center border-t" style="border-color:${acc}55">${name}<span class="flex gap-[3px]">${[bg,acc,kw,str].map(x=>`<b class="inline-block w-[9px] h-[9px] rounded-full border border-black/10" style="background:${x}"></b>`).join("")}</span></div></div>`;
+  }).join("")+`</div>`;
+}
+
+/* ── pages ────────────────────────────────────────────── */
+const PAGES={
+overview:()=>
+ H1("Dot","A VS Code-style code editor that lives in your terminal.")+
+ `<p>Dot is a terminal code editor written in Go with no third-party modules. It looks like VS Code (Dark+), navigates like LazyVim, and runs anywhere from Windows XP to Windows 11, in cmd, PowerShell or Windows Terminal. Type <code>.dot</code> and you get an explorer, tabs, syntax colours, find / replace, an output and terminal panel, and a full colour image viewer, all inside the console.</p>`+
+ NOTE(`<b className="text-red-500">⚠️ Honest framing.</b> Dot is a small, fast, terminal editor, not a replacement for VS Code. It has no plugins, no debugger, no language server and no git UI. The Windows builds are cross-compiled and developed and tested on Linux in a pseudo-terminal, so please report anything odd on your Windows version.`)+
+ H2("What Dot actually does")+
+ Card("Looks like VS Code","Menu bar, activity bar, explorer with file icons, tabs, breadcrumbs, status bar and a resizable bottom panel, in the Dark+ colours.","Interface","t-green")+
+ Card("Navigates like LazyVim","A Telescope-style finder (results above, prompt below, preview on the right) and a which-key leader menu, instead of a flat command list.","Navigation","t-green")+
+ Card("Shows pictures in the terminal","PNG, JPEG and GIF open full screen using half-block characters. 24-bit colour on modern terminals, dithered 16 colours on old consoles.","Images","t-blue")+
+ Card("Themes and rebindable keys","Nine built-in colour themes and an editor for every keyboard shortcut. Everything is saved in a plain settings file.","Customising","t-blue")+
+ Card("Runs on old Windows","Windows 7 / 8 through the classic console API, Windows XP through a separate Go 1.10 build, Windows 10 / 11 through true-colour VT.","Compatibility","t-pink")+
+ H2("The pieces")+
+ Rows3([["Backend","Win32 console / VT output, keyboard, mouse, clipboard","src/term_*.go"],["Editor","Text buffer, undo, find, syntax highlighting","src/doc.go"],["App","Commands, key bindings, drawing, panels","src/app.go"],["Extras","Image viewer, themes, shortcut editor, settings","src/image.go"]]),
+install:()=>
+ H1("Install & Run","From a fresh download to typing .dot in any terminal.")+
+ `<p>You need <b>Go 1.20.x</b>, the last Go whose programs still run on Windows 7 / 8. On Windows 10 / 11 any newer Go also works, but the resulting <code>.exe</code> then needs Windows 10 or later. For Windows XP see <a href="#oldwin">Old Windows &amp; XP</a>.</p>`+
+ Step("01","Check Go","Open cmd, PowerShell or Windows Terminal and confirm Go is installed.",Block("go version","terminal"))+
+ Step("02","Run from source","Go to the folder that contains <code>go.mod</code>. You can open a folder or a file straight away.",Block(`cd Dot
+
+:: run straight from source
+go run .
+
+:: ...or open a folder / file
+go run . C:\\Projects\\my-app
+go run . main.go`,"terminal"))+
+ Step("03","Build an exe","Or build a binary and start it. Quit with <kbd>Ctrl+Q</kbd>.",Block(`go build -o dot.exe .
+dot.exe`,"terminal"))+
+ Step("04","Install so that .dot works everywhere","The scripts build both 32 and 64-bit exes, copy Dot to <code>%LOCALAPPDATA%\\Dot</code>, add it to your PATH and install the icon font. Open a <b>new</b> terminal afterwards.",Block(`scripts\\build.bat      :: builds bin64\\dot.exe and bin32\\dot.exe
+scripts\\install.bat    :: copies Dot, adds it to PATH, installs the icon font
+
+.dot                   :: open the current folder
+.dot file.py           :: open a file
+.dot C:\\Projects\\x     :: open a folder`,"terminal"))+
+ H2("What you get on each system")+
+ Rows2([["Windows 10 1703+ / Windows Terminal","True-colour VS Code Dark+"],["Windows 7 / 8","Classic console API with a redefined 16-colour palette"],["Windows XP","Classic console API, the console's own 16 colours (binxp\\dot.exe)"],["Icon font not installed","Coloured squares instead of file icons"]],["Setup","Result"])+
+ `<p>Run Dot in a real console (cmd, PowerShell or Windows Terminal), not inside another editor's output pane.</p>`,
+using:()=>
+ H1("Using Dot","The keys you will use every day.")+
+ Rows2([[K("Ctrl+N / Ctrl+S / Ctrl+W"),"New file / save / close tab"],[K("Ctrl+Z / Ctrl+Y"),"Undo / redo"],[K("Ctrl+C / Ctrl+X / Ctrl+V"),"Copy / cut / paste (Windows clipboard)"],[K("Ctrl+F / Ctrl+H"),"Find / replace (case, whole word, regex)"],[K("Ctrl+Shift+F"),"Search in files"],[K("Ctrl+G"),"Go to line"],[K("Ctrl+/"),"Toggle line comment"],[K("Alt+↑ / Alt+↓"),"Move line"],[K("Ctrl+Shift+K"),"Delete line"],[K("Tab / Shift+Tab"),"Indent / outdent"],[K("Ctrl+B / Ctrl+J"),"Toggle side bar / panel"],[K("Ctrl+PgUp / Ctrl+PgDn"),"Switch tab"],[K("F5 / Shift+F5"),"Run current file / stop"],[K("Ctrl+,"),"Settings"],[K("Ctrl+K"),"Keyboard shortcuts (view and change)"],[K("Ctrl+Alt+T"),"Colour theme"],[K("Ctrl+Q"),"Quit"]],["Key","What it does"])+
+ H2("Things to try")+
+ List([["Ctrl+P","Type part of a file name: live preview on the right."],["F5","On a .py / .js / .go / .bat file: output appears in the panel and anything you type goes to the program."],["Drag the panel header","Resize the bottom panel with the mouse."],["Menu bar / right-click","Click File, Edit, … or right-click in the editor or explorer."],["Open a .png","Opens as a picture in the image viewer."]])+
+ H2("Syntax colours")+
+ `<p>`+["Go","Python","JavaScript","TypeScript","C","C++","C#","Java","Rust","Lua","Ruby","PHP","Shell","Batch","PowerShell","SQL","HTML","XML","CSS","JSON","YAML","INI / TOML","Markdown","VBScript","Makefile"].map(x=>Tag(x)).join("")+`</p>`,
+menus:()=>
+ H1("LazyVim-style Menus","A Telescope finder and a which-key leader menu.")+
+ Rows2([[K("Ctrl+P"),"Telescope-style finder: results above, prompt below, file preview on the right"],[K("Ctrl+P")+" then <code>&gt;</code>","Commands"],[K("Ctrl+P")+" then <code>?</code>","Searchable list of every key binding"],[K("Ctrl+P")+" then <code>:</code>","Go to line"],[K("Ctrl+Shift+P / F1 / Ctrl+Space / F4"),"<b>Which-key</b> leader menu"]],["Key","Opens"])+
+ H2("Which-key leader menu")+
+ `<p>Open it, then press the letters shown. <kbd>Backspace</kbd> goes back one level and <kbd>Esc</kbd> closes it.</p>`+
+ Rows2([["<code>SPC</code>","Find file"],["<code>/</code>","Search in files"],["<code>e</code>","Explorer"],["<code>p</code>","Command palette"],["<code>,</code>","Settings"],["<code>`</code>","Terminal"],["<code>r</code>","Run file"],["<code>f</code> <code>s</code>","<b>f</b>ile → <b>s</b>ave"],["<code>s</code> <code>g</code>","<b>s</b>earch → <b>g</b>rep"],["<code>b</code> <code>d</code>","<b>b</b>uffer → close"],["<code>u</code> <code>m</code>","<b>u</b>i → <b>m</b>aximize panel"],["<code>u</code> <code>c</code>","<b>u</b>i → <b>c</b>olor theme"],["<code>u</code> <code>v</code>","<b>u</b>i → image <b>v</b>iewer"],["<code>h</code> <code>s</code>","<b>h</b>elp → keyboard <b>s</b>hortcuts (edit)"],["<code>q</code> <code>q</code>","Quit"]],["Keys","Action"]),
+panel:()=>
+ H1("Terminal Panel","Output of your programs and a small terminal, at the bottom.")+
+ `<p><kbd>Ctrl+\`</kbd> toggles it. <b>OUTPUT</b> shows the result of <kbd>F5</kbd>; <b>TERMINAL</b> runs commands (<code>cmd</code> or PowerShell on Windows; <code>cd</code>, <code>cls</code> and <code>exit</code> are built in).</p>`+
+ Rows2([["Resize","Drag the OUTPUT / TERMINAL header bar"],["Maximize / restore","Double-click the header, or "+K("Ctrl+Shift+M")],["Bigger / smaller",K("Ctrl+Alt+↑ / Ctrl+Alt+↓")],["Side bar width","Drag its right edge"],["Stop a running program",K("Ctrl+C")+" (in the panel) or "+K("Shift+F5")],["Back to the editor",K("Esc")]],["Action","How"])+
+ `<p>Programs run with piped input and output, not a real TTY. Full-screen interactive programs (REPLs, <code>vim</code>, …) will not work, but scripts that read lines from stdin do.</p>`+
+ H2("Run commands per file type")+
+ `<p>The language must be installed on the machine.</p>`+
+ Rows2([["<code>.py</code>","python / py"],["<code>.js</code>","node"],["<code>.go</code>","go run"],["<code>.bat</code> <code>.cmd</code>","cmd"],["<code>.ps1</code>","powershell"],["<code>.lua</code> <code>.rb</code> <code>.php</code> <code>.vbs</code>","lua / ruby / php / cscript"],["<code>.java</code>","java"],["<code>.c</code> <code>.cpp</code>","gcc / g++, then run"],["<code>.html</code>","opens in the browser"]],["Extension","Command"]),
+images:()=>
+ H1("Image Viewer","Real pictures in a terminal, using half-block characters.")+
+ `<p>Open a <b>PNG, JPEG or GIF</b> (first frame) from the explorer, <kbd>Ctrl+P</kbd>, or the command line (<code>.dot photo.png</code>) and it opens full screen. Each character cell shows two pixels, so a normal terminal can display real images.</p>`+
+ Rows2([[K("+ / −")+" or mouse wheel","Zoom in / out"],["Arrow keys (or <code>h j k l</code>)","Pan when zoomed"],["<code>f</code>","Fit to window"],["<code>1</code>","Actual size (1 image pixel = 1 screen pixel)"],["<code>n</code> / <code>p</code> (or Space / Backspace)","Next / previous image in the same folder"],["<code>o</code>","Open the file as text instead"],[K("Esc")+" or <code>q</code>","Close"]],["Key","Action"])+
+ `<p>Also available from <b>View → Image Viewer…</b> or the leader menu: <code>u</code> <code>v</code>.</p>`+
+ H2("How it looks on each console")+
+ Card("Windows Terminal / Windows 10+","Full 24-bit colour: the top pixel is the character's foreground, the bottom pixel its background.","True colour","t-green")+
+ Card("Windows 7 / 8 / XP consoles","Only 16 colours exist, so Dot switches the console to the standard VGA palette while the viewer is open and dithers the picture. It looks coarse, but works. The normal palette returns when you close the viewer.","16 colours","t-amber")+
+ `<p>WebP, BMP and SVG are not supported.</p>`,
+themes:()=>
+ H1("Themes","Nine built-in colour themes, saved between sessions.")+
+ `<p>Change the theme from <b>Settings → Color theme…</b>, <kbd>Ctrl+Alt+T</kbd>, the leader menu (<code>u</code> <code>c</code>) or <b>View → Color Theme…</b>. The choice is saved as <code>theme=</code> in <code>settings.ini</code> and also works on old consoles, where the 16 console colours are redefined.</p>`+
+ themeCards()+
+ H2("Add your own")+
+ `<p>A theme is the 16 colour slots in this order. Append one line to the <code>themes</code> list in <code>src/theme.go</code> and rebuild.</p>`+
+ Block(`// bg accent comment type red ctl func fg | side kw num var str bar sel dim
+{"My Theme", [16]uint32{0x1e1e1e, 0x007acc, 0x6a9955, 0x4ec9b0, 0xf44747, 0xc586c0, 0xdcdcaa, 0xd4d4d4,
+                        0x252526, 0x569cd6, 0xb5cea8, 0x9cdcfe, 0xce9178, 0x3c3c3c, 0x264f78, 0x858585}},`,"src/theme.go","text"),
+shortcuts:()=>
+ H1("Keyboard Shortcuts","See every command with its keys, and change any of them.")+
+ `<p>Press <kbd>Ctrl+K</kbd>, or use <b>Settings → Keyboard shortcuts…</b>, <b>Help → Keyboard Shortcuts</b> or the leader menu (<code>h</code> <code>s</code>).</p>`+
+ Step("01","Pick a command","Type to search the list, then press <kbd>Enter</kbd> on a command. The current keys are shown at the start of each line.")+
+ Step("02","Press the new keys","A box asks for the new combination. It needs <b>Ctrl+…</b>, <b>Alt+…</b> or an <b>F key</b>.")+
+ Step("03","Done, or undo","<kbd>Backspace</kbd> removes the command's shortcuts, <kbd>Esc</kbd> cancels. The first line of the list, <i>Reset ALL shortcuts to default</i>, undoes everything.")+
+ `<p>A key that another command used moves to the new one. Changes are saved in <code>settings.ini</code> so you can also edit them by hand:</p>`+
+ Block(`key.ctrl+t=view.sidebar     # add / change a shortcut
+key.ctrl+s=none             # remove a default shortcut`,"settings.ini","ini")+
+ `<p>If you ever lock yourself out, delete the <code>key.</code> lines from the file.</p>`,
+icons:()=>
+ H1("File Icons","The real vscode-icons set, drawn by a colour font.")+
+ `<p>A terminal can only draw text, so the <a href="https://github.com/vscode-icons/vscode-icons">vscode-icons</a> SVGs are packed into a <b>colour font</b> (<code>assets/font/DotIcons.ttf</code>, about 1,240 icons) by <code>tools/gen_icons.py</code>. Dot prints a special character for each file type and the font draws it. <b>If the font is not installed and selected, you only see squares.</b></p>`+
+ Step("01","Install the font","Double-click <code>assets\\font\\DotIcons.ttf</code> and choose <b>Install</b> (or right-click → <b>Install for all users</b>). <code>scripts\\install.bat</code> also tries to do this for you.")+
+ Step("02","Select it in Windows Terminal","<b>Settings → Profiles → Defaults → Appearance → Font face</b>, type exactly:",Block("Cascadia Mono, DotIcons","font face","text"))+
+ Step("03","Restart and switch on","Fully close and reopen the terminal, run <code>.dot</code>, press <kbd>Ctrl+,</kbd> and set <b>File icons</b> to <b>on</b>. <i>auto</i> only turns on when Dot finds the font file in <code>%LOCALAPPDATA%\\Microsoft\\Windows\\Fonts</code> or <code>C:\\Windows\\Fonts</code>. The choice is saved.")+
+ `<p>Windows 7 / 8 / XP consoles cannot show icon fonts: Dot turns icons off there and Settings tells you so.</p>`+
+ H2("Add your own icons")+
+ Card("A new extension, an existing icon","Add an <code>alias.</code> line to <code>settings.ini</code>. No rebuild needed.","Easy","t-green")+
+ Block(`alias.mjs=js
+alias.tsx=ts
+alias.vue=html`,"settings.ini","ini")+
+ Card("A brand-new icon picture","Add an SVG to a vscode-icons checkout as <code>icons/file_type_&lt;name&gt;.svg</code>, map an extension to it in <code>src/iconsManifest/supportedExtensions.ts</code>, then regenerate the font.","Advanced","t-blue")+
+ Block(`git clone --depth 1 https://github.com/vscode-icons/vscode-icons
+python tools/gen_icons.py vscode-icons out
+python tools/fix_names.py out/DotIcons.ttf
+# writes out/DotIcons.ttf and out/icons_data.go
+# copy icons_data.go over src/icons_data.go, rebuild, then uninstall and re-install the font`,"regenerate","shell")+
+ `<p>Needs Python and <code>pip install fonttools</code>.</p>`,
+settings:()=>
+ H1("Settings File","Plain text, saved automatically, editable by hand.")+
+ `<p>Dot remembers your choices in <code>%APPDATA%\\Dot\\settings.ini</code> (Linux: <code>~/.config/dot/settings.ini</code>). Everything you change in <b>Settings</b>, the theme picker and the shortcut editor ends up here.</p>`+
+ Block(`# Dot settings (edited by Settings in Dot, or by hand)
+icons=on            # auto | on | off
+theme=Dracula
+sidebar=1
+panel=0
+side_width=26
+panel_height=10
+shell=cmd
+
+# changed shortcuts (key.<keys>=<command id> | none)
+key.ctrl+t=view.sidebar
+
+# give your own extensions an existing icon
+alias.mjs=js
+alias.tsx=ts
+alias.vue=html`,"settings.ini","ini")+
+ Rows2([["<code>icons</code>","auto, on or off"],["<code>theme</code>","one of the theme names"],["<code>sidebar</code> / <code>panel</code>","1 = shown, 0 = hidden"],["<code>side_width</code> / <code>panel_height</code>","Sizes in columns / rows"],["<code>shell</code>","Terminal panel shell (cmd or powershell)"],["<code>key.&lt;keys&gt;</code>","Shortcut: command id, or <code>none</code> to remove a default"],["<code>alias.&lt;ext&gt;</code>","Use another extension's icon"]],["Setting","Meaning"]),
+oldwin:()=>
+ H1("Old Windows & XP","How Dot draws colour on every Windows from XP to 11.")+
+ Rows2([["Windows 10 1703+ / Windows Terminal","ANSI true-colour (VS Code Dark+ exact)"],["Windows 7 / 8","The classic console API (<code>WriteConsoleOutputW</code>) with a redefined 16-colour palette, so the same colours appear without ANSI support"],["Windows XP","The classic console API with the console's default 16 colours"]],["System","Rendering"])+
+ `<p>Force a mode with <code>.dot --vt</code> or <code>.dot --legacy</code>. Window too small? Use the leader menu: <code>u</code> <code>w</code> for size presets (classic console only). Themes work in both modes.</p>`+
+ H2("Windows XP")+
+ `<p>XP is supported through a separate build made with <b>Go 1.10.8</b>, the last Go release that still runs on XP (newer Go needs Windows 7 or later). The code is kept compatible with both versions, so it is the same source. <code>binxp\\dot.exe</code> is 32-bit and also runs on every newer Windows.</p>`+
+ Block(`:: 1. unzip go1.10.8.windows-386.zip, put its bin folder first in PATH
+go version                :: must say go1.10.8
+scripts\\build_xp.bat      :: -> binxp\\dot.exe (32-bit)
+scripts\\install_xp.bat    :: -> %USERPROFILE%\\Dot, adds it to PATH (log off/on once)`,"terminal")+
+ H2("What is different on XP")+
+ List([["Colours","No true colour: the console's default 16 colours are used."],["Icons","No icon font; Dot turns icons off."],["Terminal panel","taskkill and PowerShell may be missing, so the panel uses cmd only."],["Running files","Python, Node, etc. must exist on the machine for F5."]]),
+arch:()=>
+ H1("Architecture","Every layer of Dot, and where it lives.")+
+ H2("Data flow")+
+ Block(` keyboard / mouse ─▶ Backend ─▶ Event ─▶ App (commands, keymap, focus)
+                                          │
+                       Doc (text, undo) ◀─┤──▶ draw.go ─▶ Screen ─▶ Backend.Flush
+                       syntax.go          │
+                       panel.go (processes)`,"flow","text")+
+ `<p>No third-party Go modules: only the standard library and raw Win32 calls.</p>`+
+ H2("Folder layout")+
+ Block(`Dot/
+├── main.go                 entry point (calls src.Run)
+├── go.mod
+├── src/                    all application code
+├── scripts/                build, build_xp, install, install_xp, uninstall (.bat)
+├── assets/font/            DotIcons.ttf
+└── tools/                  gen_icons.py, fix_names.py`,"tree","tree")+
+ H2("Source files")+
+ Rows2([["<code>src/run.go</code>","Arguments, start-up, main loop"],["<code>src/screen.go</code>","Palette, screen buffer, ANSI renderer"],["<code>src/term_windows.go</code>","Win32 console: output, keyboard, mouse, clipboard"],["<code>src/term_linux.go</code> / <code>term_other.go</code>","Linux backend (used for testing) / stub"],["<code>src/doc.go</code>","Text buffer, editing, undo, find"],["<code>src/syntax.go</code>","Languages and highlighting"],["<code>src/app.go</code>","Commands, key bindings, mouse"],["<code>src/draw.go</code>","Menu bar, explorer, tabs, editor, panel, status bar"],["<code>src/widgets.go</code>","Inputs, dialogs, menus"],["<code>src/lazy.go</code>","Telescope-style finder, which-key menu, Settings"],["<code>src/explorer.go</code>","File tree and search in files"],["<code>src/panel.go</code>","Output / terminal panel and process running"],["<code>src/image.go</code>","Image viewer"],["<code>src/theme.go</code>","Colour themes"],["<code>src/keys.go</code>","Keyboard shortcut editor"],["<code>src/settings.go</code>","Saved settings (settings.ini)"],["<code>src/icons.go</code> / <code>icons_data.go</code>","File icon lookup (data is generated)"],["<code>src/compat.go</code>","Helpers so the code also builds with Go 1.10 (XP)"],["<code>src/proc_*.go</code>","Hidden-window process start, kill tree"]],["File","Role"]),
+build:()=>
+ H1("Building & Extending","Make your own builds and add to Dot.")+
+ H2("Building")+
+ Block(`scripts\\build.bat`,"terminal")+
+ `<p>or by hand:</p>`+
+ Block(`set CGO_ENABLED=0
+set GOOS=windows
+set GOARCH=amd64
+go build -trimpath -ldflags="-s -w" -o bin64\\dot.exe .
+set GOARCH=386
+go build -trimpath -ldflags="-s -w" -o bin32\\dot.exe .`,"terminal")+
+ `<p>Cross-compiling from Linux / macOS: <code>GOOS=windows GOARCH=amd64 go build -o dot.exe .</code> The Windows XP build is described under <a href="#oldwin">Old Windows &amp; XP</a>.</p>`+
+ H2("Extending")+
+ List([["New command","<code>add(\"id\", \"Title\", func(a *App) {...})</code> in <code>src/app.go</code>, then bind a key in the <code>keymap</code> table."],["Leader menu entry","Add to <code>leaderTree</code> in <code>src/lazy.go</code>."],["New language","Add a <code>*Lang</code> to the list in <code>src/syntax.go</code> (extensions, comment markers, keyword sets)."],["Run command per file type","<code>stepsFor</code> in <code>src/panel.go</code>."],["Setting","Add an item in <code>openSettings</code> in <code>src/lazy.go</code> and save it in <code>src/settings.go</code>."],["Theme","Add a <code>Theme{...}</code> entry in <code>src/theme.go</code>."]]),
+trouble:()=>
+ H1("Troubleshooting","The usual problems and their fixes.")+
+ Rows2([["<code>.dot</code> is not recognized","Open a <b>new</b> terminal after <code>scripts\\install.bat</code>; or use <code>dot</code>; or add <code>%LOCALAPPDATA%\\Dot</code> to PATH"],["“must be started from a real console”","Run it from cmd / PowerShell / Windows Terminal"],["Colours look wrong","<code>.dot --legacy</code> (old consoles) or <code>.dot --vt</code> (Windows Terminal)"],["Icons are squares","Install <code>assets\\font\\DotIcons.ttf</code>, set font face <code>Cascadia Mono, DotIcons</code>, restart the terminal, then set Settings → File icons to <b>on</b>"],["Settings are not remembered","Update to the latest build; they are saved in <code>%APPDATA%\\Dot\\settings.ini</code>"],["A shortcut change broke something","<kbd>Ctrl+K</kbd> → <i>Reset ALL shortcuts to default</i>, or delete the <code>key.</code> lines in settings.ini"],["The first row looks shifted","Update <code>src/screen.go</code>: the menu icon is double-width in Windows Terminal and needs the latest renderer"],["Terminal panel shows nothing","Update to the latest build (older builds drew output in the background colour)"],["<code>bun</code> / <code>npm</code> / <code>python</code> not found in the panel","The tool must be on your <code>PATH</code>"]],["Problem","Fix"])+
+ H2("Credits")+
+ `<p>File icons are from <a href="https://github.com/vscode-icons/vscode-icons">vscode-icons</a> (icons: CC BY-SA 4.0), packed into <code>DotIcons.ttf</code>. The look is inspired by VS Code (Dark+) and LazyVim / Telescope.</p>`,
+};
+
+
+/* ── router / chrome ──────────────────────────────────── */
+const $=s=>document.querySelector(s);
+let current="overview";
+const ASIDE_BASE="w-[210px] shrink-0 sticky top-[54px] h-[calc(100vh-54px)] overflow-y-auto pt-8 pr-6 border-r border-[#f0f0f0] hidden md:block";
+const ASIDE_OPEN="max-md:!block max-md:fixed max-md:left-0 max-md:top-[54px] max-md:bg-white max-md:z-[39] max-md:w-full max-md:h-[calc(100vh-54px)] max-md:border-r-0 max-md:pl-6";
+let menuOpen=false;
+
+function renderSide(){
+  const groups=[...new Set(NAV.map(n=>n.group))];
+  const side=$("#side");
+  side.className=ASIDE_BASE+(menuOpen?" "+ASIDE_OPEN:"");
+  side.innerHTML=groups.map(g=>`<div class="mb-7"><p class="font-mono text-[10px] font-medium tracking-[0.12em] uppercase text-[#ccc] mb-2 pl-2.5">${g}</p><ul class="list-none">${NAV.filter(n=>n.group===g).map(n=>`<li><button data-go="${n.id}" class="w-full text-left px-2.5 py-1.5 rounded-md text-[13.5px] font-sans cursor-pointer border-none transition-all duration-100 ${n.id===current?"bg-[#f4f4f2] text-[#0d0d0d] font-medium":"bg-transparent text-[#888] font-normal hover:text-[#0d0d0d]"}">${n.label}</button></li>`).join("")}</ul></div>`).join("");
+}
+function render(){
+  const idx=NAV.findIndex(n=>n.id===current), prev=NAV[idx-1], next=NAV[idx+1];
+  const pg=(n,dir)=>`<button data-go="${n.id}" class="bg-transparent border-none cursor-pointer ${dir==="l"?"text-left":"text-right"} group"><div class="font-mono text-[10px] text-[#bbb] uppercase tracking-[0.1em] mb-1">${dir==="l"?"Previous":"Next"}</div><div class="font-sans text-[13.5px] text-[#888] group-hover:text-[#0d0d0d]">${dir==="l"?"← "+n.label:n.label+" →"}</div></button>`;
+  $("#main").innerHTML=PAGES[current]()+`<div class="flex justify-between mt-16 pt-7 border-t border-[#f0f0f0]">${prev?pg(prev,"l"):"<div></div>"}${next?pg(next,"r"):"<div></div>"}</div>`;
+  renderSide();
+  document.title=NAV[idx].label+" · Dot Docs";
+}
+function setMenuIcon(open){
+  $("#menuBtn").innerHTML=`<svg width="18" height="18" viewBox="0 0 18 18" fill="none">${open?'<path d="M2 2l14 14M16 2L2 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>':'<path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'}</svg>`;
+}
+function go(id){
+  if(!PAGES[id])id="overview";
+  current=id; menuOpen=false; setMenuIcon(false);
+  if(location.hash!=="#"+id)history.pushState(null,"","#"+id);
+  render();window.scrollTo(0,0);
+}
+document.addEventListener("click",e=>{
+  const g=e.target.closest("[data-go]");
+  if(g){go(g.dataset.go);return}
+  const a=e.target.closest('a[href^="#"]');
+  if(a){e.preventDefault();go(a.getAttribute("href").slice(1));return}
+  const c=e.target.closest("[data-copy]");
+  if(c){
+    const code=c.closest(".blk").dataset.code, lab=c.querySelector("span");
+    const done=()=>{c.classList.add("bg-[#313244]","!text-[#50fa7b]");lab.textContent="Copied";setTimeout(()=>{c.classList.remove("bg-[#313244]","!text-[#50fa7b]");lab.textContent="Copy"},2000)};
+    const fallback=()=>{const t=document.createElement("textarea");t.value=code;document.body.appendChild(t);t.select();try{document.execCommand("copy");done()}catch(_){}t.remove()};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(code).then(done,fallback)}else fallback();
+  }
+});
+$("#menuBtn").addEventListener("click",()=>{menuOpen=!menuOpen;setMenuIcon(menuOpen);renderSide()});
+window.addEventListener("scroll",()=>{const h=$("#hdr");h.classList.toggle("bg-white/90",window.scrollY>8);h.classList.toggle("backdrop-blur-md",window.scrollY>8)});
+window.addEventListener("popstate",()=>{current=location.hash.slice(1)||"overview";if(!PAGES[current])current="overview";render();window.scrollTo(0,0)});
+current=location.hash.slice(1)||"overview";if(!PAGES[current])current="overview";
+setMenuIcon(false);render();
+</script>
+</body>
+</html>
