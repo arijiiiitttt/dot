@@ -1,11 +1,11 @@
 //go:build windows
+// +build windows
 
-package main
+package src
 
 import (
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"unicode/utf16"
 	"unsafe"
@@ -97,9 +97,9 @@ func winBuild() int {
 		return 0
 	}
 	var v struct {
-		Size                         uint32
+		Size                          uint32
 		Major, Minor, Build, Platform uint32
-		CSD                          [128]uint16
+		CSD                           [128]uint16
 	}
 	v.Size = uint32(unsafe.Sizeof(v))
 	p.Call(uintptr(unsafe.Pointer(&v)))
@@ -148,18 +148,7 @@ func (b *winBackend) Init() error {
 			b.alt = true
 			pSetConsoleActiveScreenBuffer.Call(h)
 		}
-		if pGetConsoleScreenBufferInfoEx.Find() == nil {
-			var ex csbiEx
-			ex.CbSize = uint32(unsafe.Sizeof(ex))
-			pGetConsoleScreenBufferInfoEx.Call(uintptr(b.hout), uintptr(unsafe.Pointer(&ex)))
-			for i := 0; i < 16; i++ {
-				c := paletteRGB[i]
-				ex.Table[i] = (c>>16)&255 | ((c>>8)&255)<<8 | (c&255)<<16
-			}
-			ex.Win.R++
-			ex.Win.B++
-			pSetConsoleScreenBufferInfoEx.Call(uintptr(b.hout), uintptr(unsafe.Pointer(&ex)))
-		}
+		b.ApplyPalette(nil)
 		// make the window comfortably large if it is the tiny default
 		w, h2 := b.Size()
 		if w < 100 || h2 < 30 {
@@ -462,7 +451,7 @@ func translateKey(vk, ch uint16, cs uint32) (Event, bool) {
 // ---------------------------------------------------------------- clipboard
 
 func (b *winBackend) SetClip(s string) {
-	s = strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", "\r\n")
+	s = replaceAll(replaceAll(s, "\r\n", "\n"), "\n", "\r\n")
 	u := utf16.Encode([]rune(s))
 	u = append(u, 0)
 	if r, _, _ := pOpenClipboard.Call(0); r == 0 {
@@ -503,5 +492,38 @@ func (b *winBackend) GetClip() (string, bool) {
 	for n < 1<<27 && arr[n] != 0 {
 		n++
 	}
-	return strings.ReplaceAll(string(utf16.Decode(arr[:n:n])), "\r\n", "\n"), true
+	return replaceAll(string(utf16.Decode(arr[:n:n])), "\r\n", "\n"), true
 }
+
+// ApplyPalette redefines the console's 16 colours (legacy console only). nil = current theme.
+// Not available on Windows XP (no SetConsoleScreenBufferInfoEx): the default colours stay.
+func (b *winBackend) ApplyPalette(p *[16]uint32) {
+	if b.vt || b.hout == 0 || pGetConsoleScreenBufferInfoEx.Find() != nil {
+		return
+	}
+	if p == nil {
+		p = &paletteRGB
+	}
+	var ex csbiEx
+	ex.CbSize = uint32(unsafe.Sizeof(ex))
+	pGetConsoleScreenBufferInfoEx.Call(uintptr(b.hout), uintptr(unsafe.Pointer(&ex)))
+	for i := 0; i < 16; i++ {
+		c := p[i]
+		ex.Table[i] = (c>>16)&255 | ((c>>8)&255)<<8 | (c&255)<<16
+	}
+	ex.Win.R++
+	ex.Win.B++
+	pSetConsoleScreenBufferInfoEx.Call(uintptr(b.hout), uintptr(unsafe.Pointer(&ex)))
+}
+
+// Repaint forces a full redraw after the theme changed.
+func (b *winBackend) Repaint() {
+	if b.vt {
+		b.vtr.Reset()
+		return
+	}
+	b.ApplyPalette(nil)
+}
+
+// TrueColor reports whether cells may carry RGB colours (VT mode).
+func (b *winBackend) TrueColor() bool { return b.vt }

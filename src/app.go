@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"os"
@@ -49,15 +49,16 @@ type Layout struct {
 }
 
 type App struct {
-	be      Backend
-	scr     *Screen
-	W, H    int
-	docs    []*Doc
-	act     int
-	root    string
-	focus   Focus
-	overlay Overlay
-	lay     Layout
+	extraSettings string // alias.* lines of settings.ini, kept when saving
+	be            Backend
+	scr           *Screen
+	W, H          int
+	docs          []*Doc
+	act           int
+	root          string
+	focus         Focus
+	overlay       Overlay
+	lay           Layout
 
 	sideVis, panelVis bool
 	sideView          int // 0 explorer 1 search
@@ -85,15 +86,15 @@ type App struct {
 	hits     []Hit
 	tabFirst int
 
-	clip     string
-	clipLine bool
-	untitled int
-	dragging bool
+	clip                string
+	clipLine            bool
+	untitled            int
+	dragging            bool
 	dragPanel, dragSide bool
-	panelMax    bool
-	panelPrev   int
-	lastHdrClick time.Time
-	quit     bool
+	panelMax            bool
+	panelPrev           int
+	lastHdrClick        time.Time
+	quit                bool
 }
 
 func NewApp(be Backend, root string) *App {
@@ -150,7 +151,12 @@ func (a *App) newDoc() {
 	a.addDoc(d)
 }
 
-func (a *App) openFile(path string, line int) {
+// openAsText opens a file in the editor even if it is a picture.
+func (a *App) openAsText(path string) { a.openFileX(path, 0, true) }
+
+func (a *App) openFile(path string, line int) { a.openFileX(path, line, false) }
+
+func (a *App) openFileX(path string, line int, forceText bool) {
 	abs, err := filepath.Abs(path)
 	if err == nil {
 		path = abs
@@ -158,6 +164,12 @@ func (a *App) openFile(path string, line int) {
 	if st, err := os.Stat(path); err == nil && st.IsDir() {
 		a.openFolder(path)
 		return
+	}
+	if !forceText && isImagePath(path) {
+		if _, err := os.Stat(path); err == nil {
+			a.openImage(path)
+			return
+		}
 	}
 	for i, d := range a.docs {
 		if d.Path == path {
@@ -478,7 +490,7 @@ var keymap = []keyBind{
 	{"f5", "run.file"}, {"ctrl+f5", "run.file"}, {"shift+f5", "run.stop"},
 	{"f2", "explorer.rename"}, {"f10", "view.menu"},
 	{"ctrl+alt+up", "view.panelbigger"}, {"ctrl+alt+down", "view.panelsmaller"}, {"ctrl+shift+m", "view.panelmax"},
-	{"ctrl+space", "help.leader"}, {"ctrl+,", "view.settings"}, {"f4", "help.leader"},
+	{"ctrl+space", "help.leader"}, {"ctrl+,", "view.settings"}, {"f4", "help.leader"}, {"ctrl+k", "view.keybindings"}, {"ctrl+alt+t", "view.theme"},
 }
 
 var keyIndex = map[string]string{}
@@ -745,9 +757,30 @@ func init() {
 	add("view.panelmax", "View: Maximize / Restore Panel", func(a *App) { a.panelVis = true; a.togglePanelMax() })
 	add("view.icons", "View: Toggle File Icons (auto / on / off)", func(a *App) {
 		iconMode = (iconMode + 1) % 3
+		a.saveSettings()
 		a.say("File icons: " + []string{"auto", "on", "off"}[iconMode])
 	})
 	add("view.settings", "Preferences: Open Settings", func(a *App) { a.openSettings() })
+	add("view.theme", "Preferences: Color Theme...", func(a *App) { a.pickTheme() })
+	add("view.keybindings", "Preferences: Keyboard Shortcuts...", func(a *App) { a.openKeybindings("") })
+	add("view.image", "View: Open Image Viewer...", func(a *App) {
+		if d := a.cur(); d != nil && d.Path != "" && isImagePath(d.Path) {
+			a.openImage(d.Path)
+			return
+		}
+		var items []PItem
+		for _, f := range a.listFiles() {
+			if isImagePath(f) {
+				p := filepath.Join(a.root, f)
+				items = append(items, PItem{Label: f, File: f, Run: func(a *App) { a.openImage(p) }})
+			}
+		}
+		if len(items) == 0 {
+			a.err("No PNG / JPEG / GIF images found in this folder")
+			return
+		}
+		a.pick("Choose an image to view", items)
+	})
 	add("help.leader", "Help: Which Key (leader menu)", func(a *App) { a.openWhichKey() })
 	add("view.panelbigger", "View: Increase Panel Size", func(a *App) { a.panelVis = true; a.setPanelH(a.panelH + 3) })
 	add("view.panelsmaller", "View: Decrease Panel Size", func(a *App) { a.setPanelH(a.panelH - 3) })
@@ -790,7 +823,7 @@ func init() {
 		var items []PItem
 		for _, s := range shellChoices() {
 			s := s
-			items = append(items, PItem{Label: s, Run: func(a *App) { a.shell = s; a.say("Terminal shell: " + s) }})
+			items = append(items, PItem{Label: s, Run: func(a *App) { a.shell = s; a.saveSettings(); a.say("Terminal shell: " + s) }})
 		}
 		a.pick("Select the shell used by the terminal panel", items)
 	})

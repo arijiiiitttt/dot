@@ -1,6 +1,7 @@
 @echo off
 REM Builds Dot for 64-bit and 32-bit Windows into bin64\ and bin32\.
 REM Use Go 1.20.x if the exe must run on Windows 7/8 (Go 1.21+ needs Windows 10).
+cd /d "%~dp0.."
 set CGO_ENABLED=0
 set GOOS=windows
 set GOARCH=amd64

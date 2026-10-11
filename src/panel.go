@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"io"
@@ -189,7 +189,7 @@ func (a *App) runSteps(pane *Pane, steps []step, cwd string) {
 			err = cmd.Wait()
 			code = 0
 			if ee, ok := err.(*exec.ExitError); ok {
-				code = ee.ExitCode()
+				code = exitCodeOf(ee)
 			} else if err != nil {
 				code = 1
 			}
@@ -404,7 +404,7 @@ func (a *App) termEnter() {
 
 func (a *App) changeDir(arg string) {
 	if arg == "~" {
-		if h, err := os.UserHomeDir(); err == nil {
+		if h, err := userHome(); err == nil {
 			arg = h
 		}
 	}

@@ -1,7 +1,6 @@
-package main
+package src
 
 import (
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -480,12 +479,12 @@ var menuBar = []menuDef{
 	{"View", []MItem{{"Command Palette...", "view.palette", nil, false}, {"", "", nil, true},
 		{"Explorer", "view.explorer", nil, false}, {"Search", "view.search", nil, false}, {"", "", nil, true},
 		{"Toggle Side Bar", "view.sidebar", nil, false}, {"Toggle Panel", "view.panel", nil, false}, {"Terminal", "view.terminal", nil, false}, {"Output", "view.output", nil, false},
-		{"", "", nil, true}, {"Window Size...", "view.windowsize", nil, false}}},
+		{"", "", nil, true}, {"Window Size...", "view.windowsize", nil, false}, {"", "", nil, true}, {"Color Theme...", "view.theme", nil, false}, {"Keyboard Shortcuts...", "view.keybindings", nil, false}, {"Image Viewer...", "view.image", nil, false}}},
 	{"Go", []MItem{{"Go to File...", "file.quickopen", nil, false}, {"Go to Line...", "go.line", nil, false}, {"", "", nil, true},
 		{"Next Editor", "go.next", nil, false}, {"Previous Editor", "go.prev", nil, false}}},
 	{"Run", []MItem{{"Run File", "run.file", nil, false}, {"Stop", "run.stop", nil, false}}},
 	{"Terminal", []MItem{{"Toggle Terminal", "view.terminal", nil, false}, {"Clear Terminal", "term.clear", nil, false}, {"Select Shell...", "term.shell", nil, false}}},
-	{"Help", []MItem{{"Keyboard Shortcuts", "help.keys", nil, false}, {"Welcome", "help.welcome", nil, false}, {"About Dot", "help.about", nil, false}}},
+	{"Help", []MItem{{"Keyboard Shortcuts", "view.keybindings", nil, false}, {"Welcome", "help.welcome", nil, false}, {"About Dot", "help.about", nil, false}}},
 }
 
 func menuX(i int) int {
@@ -626,7 +625,7 @@ func (a *App) listFiles() []string {
 		if len(out) > 8000 || depth > 8 {
 			return
 		}
-		ents, err := os.ReadDir(dir)
+		ents, err := readDir(dir)
 		if err != nil {
 			return
 		}

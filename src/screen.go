@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"strconv"
@@ -32,10 +32,15 @@ var paletteRGB = [16]uint32{
 	0x252526, 0x569cd6, 0xb5cea8, 0x9cdcfe, 0xce9178, 0x3c3c3c, 0x264f78, 0x858585,
 }
 
+// Cell is one character cell. FX / BX hold an optional true-colour override (bit 24 set,
+// low 24 bits = RGB); they are only used by the image viewer on true-colour terminals.
 type Cell struct {
 	R      rune
 	Fg, Bg Color
+	FX, BX uint32
 }
+
+const rgbOn = 1 << 24
 
 type Screen struct {
 	W, H int
@@ -68,7 +73,7 @@ func (s *Screen) Fill(x, y, w, h int, r rune, fg, bg Color) {
 			if i < 0 || i >= s.W {
 				continue
 			}
-			s.C[j*s.W+i] = Cell{r, fg, bg}
+			s.C[j*s.W+i] = Cell{R: r, Fg: fg, Bg: bg}
 		}
 	}
 }
@@ -77,7 +82,15 @@ func (s *Screen) Set(x, y int, r rune, fg, bg Color) {
 	if x < 0 || y < 0 || x >= s.W || y >= s.H {
 		return
 	}
-	s.C[y*s.W+x] = Cell{r, fg, bg}
+	s.C[y*s.W+x] = Cell{R: r, Fg: fg, Bg: bg}
+}
+
+// SetRGB draws one cell with true-colour foreground and background.
+func (s *Screen) SetRGB(x, y int, r rune, fg, bg uint32) {
+	if x < 0 || y < 0 || x >= s.W || y >= s.H {
+		return
+	}
+	s.C[y*s.W+x] = Cell{R: r, Fg: cFg, Bg: cBg, FX: fg&0xffffff | rgbOn, BX: bg&0xffffff | rgbOn}
 }
 
 // PutN draws str at x,y clipped to maxw cells. Returns x after the last cell drawn.
@@ -148,7 +161,7 @@ func (v *vtRenderer) Render(s *Screen, cx, cy int, show bool) string {
 	if full {
 		b.WriteString("\x1b[2J")
 	}
-	lastFg, lastBg := -1, -1
+	var lastFg, lastBg uint32 = 1 << 30, 1 << 30
 	for y := 0; y < s.H; y++ {
 		row := s.C[y*s.W : (y+1)*s.W]
 		if !full {
@@ -166,11 +179,17 @@ func (v *vtRenderer) Render(s *Screen, cx, cy int, show bool) string {
 		}
 		b.WriteString("\x1b[" + strconv.Itoa(y+1) + ";1H")
 		for _, c := range row {
-			if int(c.Fg) != lastFg || int(c.Bg) != lastBg {
-				f, g := paletteRGB[c.Fg], paletteRGB[c.Bg]
+			f, g := paletteRGB[c.Fg], paletteRGB[c.Bg]
+			if c.FX != 0 {
+				f = c.FX & 0xffffff
+			}
+			if c.BX != 0 {
+				g = c.BX & 0xffffff
+			}
+			if f != lastFg || g != lastBg {
 				b.WriteString("\x1b[38;2;" + strconv.Itoa(int(f>>16&255)) + ";" + strconv.Itoa(int(f>>8&255)) + ";" + strconv.Itoa(int(f&255)) +
 					";48;2;" + strconv.Itoa(int(g>>16&255)) + ";" + strconv.Itoa(int(g>>8&255)) + ";" + strconv.Itoa(int(g&255)) + "m")
-				lastFg, lastBg = int(c.Fg), int(c.Bg)
+				lastFg, lastBg = f, g
 			}
 			r := c.R
 			if r == 0 {

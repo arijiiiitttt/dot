@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"bytes"
@@ -325,6 +325,7 @@ var leaderTree = []WK{
 		{Key: "l", Label: "Go to line", Cmd: "go.line"},
 		{Key: "c", Label: "Commands", Cmd: "view.palette"},
 		{Key: "k", Label: "Keymaps", Cmd: "help.keys"},
+		{Key: "K", Label: "Edit keyboard shortcuts", Cmd: "view.keybindings"},
 	}},
 	{Key: "b", Label: "+buffer", Kids: []WK{
 		{Key: "n", Label: "Next buffer", Cmd: "go.next"},
@@ -350,6 +351,9 @@ var leaderTree = []WK{
 		{Key: "m", Label: "Maximize panel", Cmd: "view.panelmax"},
 		{Key: "w", Label: "Window size", Cmd: "view.windowsize"},
 		{Key: "i", Label: "Toggle file icons", Cmd: "view.icons"},
+		{Key: "c", Label: "Color theme", Cmd: "view.theme"},
+		{Key: "k", Label: "Keyboard shortcuts", Cmd: "view.keybindings"},
+		{Key: "v", Label: "Image viewer", Cmd: "view.image"},
 	}},
 	{Key: "t", Label: "+terminal", Kids: []WK{
 		{Key: "t", Label: "Toggle terminal", Cmd: "view.terminal"},
@@ -358,6 +362,7 @@ var leaderTree = []WK{
 	}},
 	{Key: "h", Label: "+help", Kids: []WK{
 		{Key: "k", Label: "Keymaps", Cmd: "help.keys"},
+		{Key: "s", Label: "Keyboard shortcuts (edit)", Cmd: "view.keybindings"},
 		{Key: "w", Label: "Welcome", Cmd: "help.welcome"},
 		{Key: "a", Label: "About", Cmd: "help.about"},
 	}},
@@ -520,10 +525,10 @@ func (a *App) openSettings() {
 		}
 	}
 	again := func(f func(a *App)) func(a *App) {
-		return func(a *App) { f(a); a.openSettings() }
+		return func(a *App) { f(a); a.saveSettings(); a.openSettings() }
 	}
 	a.pick("Settings", []PItem{
-		{Label: "File icons", Detail: []string{"auto", "on", "off"}[iconMode], Run: again(cmd("view.icons"))},
+		{Label: "File icons", Detail: []string{"auto", "on", "off"}[iconMode] + iconNote(), Run: again(cmd("view.icons"))},
 		{Label: "Side bar", Detail: onoff(a.sideVis), Run: again(cmd("view.sidebar"))},
 		{Label: "Panel (terminal / output)", Detail: onoff(a.panelVis), Run: again(cmd("view.panel"))},
 		{Label: "Panel size: bigger", Detail: itoa(a.panelH) + " rows", Run: again(cmd("view.panelbigger"))},
@@ -531,13 +536,16 @@ func (a *App) openSettings() {
 		{Label: "Side bar width: wider", Detail: itoa(a.sideW), Run: again(cmd("view.sidewider"))},
 		{Label: "Side bar width: narrower", Detail: itoa(a.sideW), Run: again(cmd("view.sidenarrower"))},
 		{Label: "Window size...", Detail: itoa(a.W) + "x" + itoa(a.H), Run: cmd("view.windowsize")},
-		{Label: "Default shell", Detail: a.shell, Run: cmd("term.shell")},
+		{Label: "Default shell", Detail: a.shell, Run: func(a *App) { cmd("term.shell")(a) }},
 		{Label: "Indent using spaces", Detail: indent, Run: again(cmd("editor.spaces"))},
 		{Label: "Indent using tabs", Detail: indent, Run: again(cmd("editor.tabs"))},
 		{Label: "Tab size...", Detail: tsz, Run: cmd("editor.tabsize")},
 		{Label: "End of line (CRLF / LF)", Detail: eol, Run: again(cmd("editor.eol"))},
 		{Label: "Language mode...", Detail: lang, Run: cmd("editor.lang")},
-		{Label: "Keymaps", Run: cmd("help.keys")},
+		{Label: "Color theme...", Detail: themes[themeIdx].Name, Run: cmd("view.theme")},
+		{Label: "Keyboard shortcuts...", Detail: "view / change", Run: cmd("view.keybindings")},
+		{Label: "Image viewer...", Detail: "png jpg gif", Run: cmd("view.image")},
+		{Label: "Keymaps (list)", Run: cmd("help.keys")},
 		{Label: "About Dot", Run: cmd("help.about")},
 	})
 }

@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"io/ioutil"
@@ -36,7 +36,7 @@ func NewExplorer(root string) *Explorer {
 }
 
 func (e *Explorer) load(n *Node) {
-	ents, err := os.ReadDir(n.Path)
+	ents, err := ioutil.ReadDir(n.Path)
 	n.Loaded = true
 	old := map[string]*Node{}
 	for _, k := range n.Kids {
@@ -307,7 +307,7 @@ func (a *App) runSearch() {
 		if stopped || depth > 10 {
 			return
 		}
-		ents, err := os.ReadDir(dir)
+		ents, err := ioutil.ReadDir(dir)
 		if err != nil {
 			return
 		}
@@ -326,8 +326,8 @@ func (a *App) runSearch() {
 				stopped = true
 				return
 			}
-			info, err := e.Info()
-			if err != nil || info.Size() > 2<<20 {
+			info := e
+			if info.Size() > 2<<20 {
 				continue
 			}
 			b, err := ioutil.ReadFile(p)

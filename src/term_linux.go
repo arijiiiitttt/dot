@@ -1,6 +1,7 @@
 //go:build linux
+// +build linux
 
-package main
+package src
 
 import (
 	"os"
@@ -70,10 +71,10 @@ func (b *unixBackend) Size() (int, int) {
 func (b *unixBackend) Flush(s *Screen, cx, cy int, show bool) {
 	os.Stdout.WriteString(b.vtr.Render(s, cx, cy, show))
 }
-func (b *unixBackend) Events() <-chan Event { return b.events }
+func (b *unixBackend) Events() <-chan Event    { return b.events }
 func (b *unixBackend) GetClip() (string, bool) { return b.clip, b.clip != "" }
-func (b *unixBackend) SetClip(s string)     { b.clip = s }
-func (b *unixBackend) Resize(w, h int) bool { return false }
+func (b *unixBackend) SetClip(s string)        { b.clip = s }
+func (b *unixBackend) Resize(w, h int) bool    { return false }
 
 func (b *unixBackend) readLoop() {
 	buf := make([]byte, 4096)
@@ -251,3 +252,6 @@ func (b *unixBackend) csi(_ []byte, seq string, fin byte) {
 }
 
 func (b *unixBackend) Unicode() bool { return true }
+
+func (b *unixBackend) Repaint()        { b.vtr.Reset() }
+func (b *unixBackend) TrueColor() bool { return true }

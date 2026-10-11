@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build DotIcons.ttf (colour COLR/CPAL icon font) + icons_data.go from the vscode-icons SVG set.
 usage: gen_icons.py <vscode-icons checkout> <out dir>
+after building run: python tools/fix_names.py DotIcons.ttf
 """
 import os, re, sys, math
 import xml.etree.ElementTree as ET

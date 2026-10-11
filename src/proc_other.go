@@ -1,6 +1,7 @@
 //go:build !windows
+// +build !windows
 
-package main
+package src
 
 import "os/exec"
 

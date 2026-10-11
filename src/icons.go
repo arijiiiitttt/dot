@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"os"
@@ -81,4 +81,15 @@ func folderIcon(name string, open, root bool) iconGlyph {
 		return iconGlyph{iconDefDirOpen, cFg}
 	}
 	return iconGlyph{iconDefDir, cFg}
+}
+
+// iconNote explains in Settings why icons may not be showing.
+func iconNote() string {
+	switch {
+	case !uni:
+		return "  (this console cannot show icons)"
+	case iconMode == 0 && !iconFont:
+		return "  (font not found: set mode to on, or install DotIcons.ttf)"
+	}
+	return ""
 }

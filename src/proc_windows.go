@@ -1,6 +1,7 @@
 //go:build windows
+// +build windows
 
-package main
+package src
 
 import (
 	"os/exec"
@@ -31,7 +32,9 @@ func shellCommand(shell, line string) *exec.Cmd {
 func killTree(cmd *exec.Cmd) {
 	k := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid))
 	hideWindow(k)
-	k.Run()
+	if k.Run() != nil { // taskkill is missing on Windows XP Home
+		cmd.Process.Kill()
+	}
 }
 
 func defaultShell() string   { return "cmd" }

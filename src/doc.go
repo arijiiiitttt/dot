@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"bytes"
@@ -33,8 +33,8 @@ type Pos struct{ L, C int }
 func (a Pos) Less(b Pos) bool { return a.L < b.L || (a.L == b.L && a.C < b.C) }
 
 type snap struct {
-	lines        [][]rune
-	cur, anchor  Pos
+	lines       [][]rune
+	cur, anchor Pos
 }
 
 type Doc struct {
@@ -434,7 +434,7 @@ func (d *Doc) InsertText(t string) {
 	}
 	d.begin("paste")
 	d.deleteSel()
-	end := d.replace(d.Cur, d.Cur, []rune(strings.ReplaceAll(strings.ReplaceAll(t, "\r\n", "\n"), "\r", "\n")))
+	end := d.replace(d.Cur, d.Cur, []rune(replaceAll(replaceAll(t, "\r\n", "\n"), "\r", "\n")))
 	d.Cur, d.Anchor = end, end
 	d.WantVis = -1
 	d.moved()
@@ -529,7 +529,7 @@ func decodeBytes(b []byte, d *Doc) {
 }
 
 func (d *Doc) shiftLines(out bool) { d.IndentLines(out) }
-func (d *Doc) SelectWordAt(p Pos) { d.SelectWord(p) }
+func (d *Doc) SelectWordAt(p Pos)  { d.SelectWord(p) }
 func (d *Doc) HL(l int) []Color    { return d.HighlightLine(l) }
 
 func concat(parts ...[]rune) []rune {

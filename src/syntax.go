@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"path/filepath"
@@ -7,10 +7,10 @@ import (
 )
 
 type hlState struct {
-	mode  int  // 0 normal, 1 block comment, 2 multiline string, 5 html tag, 6 html attr string, 7 css (depth in aux), 8 md fence
-	delim rune // string delimiter (mode 2/6)
+	mode   int  // 0 normal, 1 block comment, 2 multiline string, 5 html tag, 6 html attr string, 7 css (depth in aux), 8 md fence
+	delim  rune // string delimiter (mode 2/6)
 	triple bool
-	aux   int
+	aux    int
 }
 
 type Lang struct {
@@ -95,28 +95,28 @@ func init() {
 			Types: set("i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 bool char str String Vec Option Result Box"),
 			Bi:    set("println print format vec panic Some None Ok Err")}),
 		{Name: "Lua", Exts: []string{".lua"}, LineC: []string{"--"}, BlockS: "--[[", BlockE: "]]", Quotes: `"'`, Icon: cKw,
-			Kw:    set("function local end then do nil true false and or not in"),
-			Ctl:   set("if elseif else for while repeat until return break goto"),
-			Bi:    set("print require pairs ipairs tostring tonumber type table string math os io setmetatable getmetatable pcall error assert")},
+			Kw:  set("function local end then do nil true false and or not in"),
+			Ctl: set("if elseif else for while repeat until return break goto"),
+			Bi:  set("print require pairs ipairs tostring tonumber type table string math os io setmetatable getmetatable pcall error assert")},
 		{Name: "Ruby", Exts: []string{".rb"}, LineC: []string{"#"}, Quotes: `"'`, Icon: cRed,
-			Kw:    set("def class module end self nil true false and or not begin rescue ensure do lambda proc yield require include attr_accessor attr_reader"),
-			Ctl:   set("if elsif else unless while until for case when then return break next redo retry"),
-			Bi:    set("puts print p require_relative")},
+			Kw:  set("def class module end self nil true false and or not begin rescue ensure do lambda proc yield require include attr_accessor attr_reader"),
+			Ctl: set("if elsif else unless while until for case when then return break next redo retry"),
+			Bi:  set("puts print p require_relative")},
 		cBlock(&Lang{Name: "PHP", Exts: []string{".php"}, LineC: []string{"//", "#"}, Quotes: `"'`, Dollar: true, Icon: cCtl,
-			Kw:    set("function class extends implements new public private protected static const echo namespace use null true false array abstract interface trait"),
-			Ctl:   set("if else elseif for foreach while do switch case default return break continue try catch finally throw"),
-			Bi:    set("isset empty die print_r var_dump strlen count")}),
+			Kw:  set("function class extends implements new public private protected static const echo namespace use null true false array abstract interface trait"),
+			Ctl: set("if else elseif for foreach while do switch case default return break continue try catch finally throw"),
+			Bi:  set("isset empty die print_r var_dump strlen count")}),
 		{Name: "Shell", Exts: []string{".sh", ".bash", ".zsh"}, LineC: []string{"#"}, Quotes: `"'`, Dollar: true, Icon: cNum,
-			Kw:    set("function local export readonly declare echo cd source alias unset"),
-			Ctl:   set("if then else elif fi for while until do done case esac in return exit break continue"),
-			Bi:    set("ls cat grep sed awk mkdir rm cp mv chmod chown find sort uniq head tail curl wget")},
+			Kw:  set("function local export readonly declare echo cd source alias unset"),
+			Ctl: set("if then else elif fi for while until do done case esac in return exit break continue"),
+			Bi:  set("ls cat grep sed awk mkdir rm cp mv chmod chown find sort uniq head tail curl wget")},
 		{Name: "Batch", Exts: []string{".bat", ".cmd"}, Special: "bat", NoCase: true, Quotes: `"`, Icon: cNum,
-			Kw:    set("echo set setlocal endlocal call cd chdir copy del dir md mkdir move rd rmdir ren rename type cls title pause color start path prompt exit errorlevel not exist defined"),
-			Ctl:   set("if else for goto in do rem")},
+			Kw:  set("echo set setlocal endlocal call cd chdir copy del dir md mkdir move rd rmdir ren rename type cls title pause color start path prompt exit errorlevel not exist defined"),
+			Ctl: set("if else for goto in do rem")},
 		{Name: "PowerShell", Exts: []string{".ps1", ".psm1", ".psd1"}, LineC: []string{"#"}, BlockS: "<#", BlockE: "#>", Quotes: `"'`, Dollar: true, Dash: true, NoCase: true, Icon: cKw,
-			Kw:    set("function param begin process end filter workflow class using $true $false $null"),
-			Ctl:   set("if else elseif switch for foreach while do until return break continue throw try catch finally in"),
-			Bi:    set("write-host write-output get-childitem set-location get-content set-content remove-item new-item")},
+			Kw:  set("function param begin process end filter workflow class using $true $false $null"),
+			Ctl: set("if else elseif switch for foreach while do until return break continue throw try catch finally in"),
+			Bi:  set("write-host write-output get-childitem set-location get-content set-content remove-item new-item")},
 		{Name: "SQL", Exts: []string{".sql"}, LineC: []string{"--"}, BlockS: "/*", BlockE: "*/", Quotes: `"'`, NoCase: true, Icon: cStr,
 			Kw:    set("select from where insert into values update set delete create table drop alter add index view join inner left right outer on as and or not null is in like between group by order having limit offset union distinct primary key foreign references default"),
 			Ctl:   set("case when then else end"),
