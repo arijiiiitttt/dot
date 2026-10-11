@@ -434,9 +434,3 @@ Cross-compiling from Linux/macOS: `GOOS=windows GOARCH=amd64 go build -o dot.exe
 
 File icons are from [vscode-icons](https://github.com/vscode-icons/vscode-icons) (icons: CC BY-SA 4.0), packed into `DotIcons.ttf`. The look is inspired by VS Code (Dark+) and LazyVim / Telescope.
 ```
-
-The file is ready. You can download it here:
-
-**[Download README.md](sandbox:/home/workdir/artifacts/README.md)**
-
-Just replace your existing `README.md` with this one. The only real changes are in the **Install** and **Building** sections so they correctly describe the new single-command build. Style and everything else is unchanged.
