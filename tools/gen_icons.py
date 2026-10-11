@@ -14,7 +14,7 @@ from fontTools.colorLib.builder import buildCOLR, buildCPAL
 
 SRC, OUT = sys.argv[1], sys.argv[2]
 ICONS = os.path.join(SRC, "icons")
-ADV, W, H, YOFF = 600, 600, 700, 60  # advance, icon box width/height, baseline offset
+ADV, W, H, YOFF = 700, 750, 850, 40  # advance, icon box width/height, baseline offset
 
 NAMED = {"white": "ffffff", "black": "000000", "red": "ff0000", "green": "008000", "blue": "0000ff",
          "yellow": "ffff00", "gray": "808080", "grey": "808080", "orange": "ffa500"}

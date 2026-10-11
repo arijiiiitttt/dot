@@ -5,7 +5,7 @@ from fontTools.ttLib import TTFont
 f = TTFont(sys.argv[1])
 n = f["name"]
 rec = {0: "Dot icon font (icons from vscode-icons, CC BY-SA 4.0)", 1: "DotIcons", 2: "Regular",
-       3: "Dot;DotIcons;1.0", 4: "DotIcons", 5: "Version 1.0", 6: "DotIcons"}
+       3: "Dot;DotIcons;1.0", 4: "DotIcons", 5: "Version 1.0", 6: "DotIcons",8: "Arijit Roy"}
 n.names = [x for x in n.names if x.nameID not in rec]
 for pid, eid, lid in ((3, 1, 0x409), (1, 0, 0)):
     for k, v in rec.items():
