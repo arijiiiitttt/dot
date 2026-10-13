@@ -429,6 +429,9 @@ func translateKey(vk, ch uint16, cs uint32) (Event, bool) {
 			}
 		}
 	}
+	if name == "" && ch == 0x1F { // Windows Terminal sends Ctrl+/ as 0x1F
+		name, ctrl = "/", true
+	}
 	if name != "" {
 		p := ""
 		if ctrl {

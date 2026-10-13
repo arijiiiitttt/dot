@@ -104,5 +104,6 @@ func Run(osArgs []string) (code int) {
 			a.render()
 		}
 	}
+	a.killAll()
 	return 0
 }

@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 func (a *App) hit(x, y, w, h int, fn func()) {
@@ -119,6 +120,12 @@ func (a *App) drawSidebar() {
 		return
 	}
 	s.PutN(x+2, 1, w-3, "EXPLORER", cDim, cSide)
+	if w >= 16 {
+		s.Put(x+w-7, 1, " \u00ab ", cDim, cSide)
+		a.hit(x+w-7, 1, 3, 1, func() { a.sideW = imax(10, a.sideW-4) })
+		s.Put(x+w-4, 1, " \u00bb ", cDim, cSide)
+		a.hit(x+w-4, 1, 3, 1, func() { a.sideW = imin(a.sideW+4, a.W/2) })
+	}
 	e := a.exp
 	h := a.H - 3
 	if e.Sel < e.Top {
@@ -161,18 +168,18 @@ func (a *App) drawSidebar() {
 			}
 			if ic := folderIcon(n.Name, n.Open, n == e.Root); ic.r != 0 {
 				s.Set(cx+2, y, ic.r, ic.c, bg)
-				s.PutN(cx+4, y, x+w-cx-5, name, fg, bg)
+				s.PutN(cx+4, y, x+w-cx-5, fitName(name, x+w-cx-5), fg, bg)
 			} else {
-				s.PutN(cx+2, y, x+w-cx-3, name, fg, bg)
+				s.PutN(cx+2, y, x+w-cx-3, fitName(name, x+w-cx-3), fg, bg)
 			}
 		} else {
 			ic := fileIcon(n.Name)
 			if iconsOn() {
 				s.Set(cx+2, y, ic.r, ic.c, bg)
-				s.PutN(cx+4, y, x+w-cx-5, n.Name, fg, bg)
+				s.PutN(cx+4, y, x+w-cx-5, fitName(n.Name, x+w-cx-5), fg, bg)
 			} else {
 				s.Set(cx+1, y, ic.r, ic.c, bg)
-				s.PutN(cx+3, y, x+w-cx-4, n.Name, fg, bg)
+				s.PutN(cx+3, y, x+w-cx-4, fitName(n.Name, x+w-cx-4), fg, bg)
 			}
 			for _, d := range a.docs {
 				if d.Path == n.Path && d.Dirty {
@@ -586,33 +593,56 @@ func (a *App) drawPanel() {
 	x0, w := l.edX, l.edW
 	y := l.panelY
 	s.Fill(x0, y, w, 1, ' ', cDim, cSide)
-	tabs := []string{"OUTPUT", "TERMINAL"}
 	x := x0 + 1
-	for i, t := range tabs {
+	limit := x0 + w - 13 - len(a.shell)
+	tab := func(label string, active bool, fn func()) {
+		if x+len(label)+2 > limit {
+			return
+		}
 		fg, bg := cDim, cSide
-		if i == a.panelTab {
+		if active {
 			fg, bg = cFg, cBg
 		}
-		s.Put(x, y, " "+t+" ", fg, bg)
-		i := i
-		a.hit(x, y, len(t)+2, 1, func() { a.panelTab = i; a.focus = fPanel })
-		x += len(t) + 3
+		s.Put(x, y, " "+label+" ", fg, bg)
+		a.hit(x, y, len(label)+2, 1, fn)
+		x += len(label) + 3
+	}
+	tab(map[bool]string{true: "\u25ba OUTPUT", false: "OUTPUT"}[a.out.proc != nil], a.panelTab == 0, func() { a.panelTab = 0; a.focus = fPanel })
+	for i, t := range a.terms {
+		i, t := i, t
+		on := a.panelTab == 1 && i == a.ti
+		lab := t.Name
+		if t.proc != nil {
+			lab = "\u25ba " + lab
+		}
+		tab(lab, on, func() { a.switchTerm(i); a.focus = fPanel })
+		if on && len(a.terms) > 1 {
+			x -= 2
+			s.Put(x, y, "\u00d7 ", cRed, cBg)
+			a.hit(x, y, 2, 1, func() { a.closeTerm(i) })
+			x += 2
+		}
+	}
+	if x+3 <= limit {
+		s.Put(x, y, " + ", cType, cSide)
+		a.hit(x, y, 3, 1, func() { a.newTerm(); a.focus = fPanel })
 	}
 	right := " x "
 	s.Put(x0+w-3, y, right, cDim, cSide)
 	a.hit(x0+w-3, y, 3, 1, func() { a.panelVis = false; a.focus = fEditor })
+	s.Put(x0+w-6, y, " \u25b2 ", cDim, cSide)
+	a.hit(x0+w-6, y, 3, 1, func() { a.setPanelH(a.panelH + 3) })
+	s.Put(x0+w-9, y, " \u25bc ", cDim, cSide)
+	a.hit(x0+w-9, y, 3, 1, func() { a.setPanelH(a.panelH - 3) })
 	if a.panelTab == 1 {
 		sh := a.shell
-		s.Put(x0+w-5-len(sh), y, sh, cDim, cSide)
+		s.Put(x0+w-11-len(sh), y, sh, cDim, cSide)
 	}
 	pane := a.out
 	if a.panelTab == 1 {
 		pane = a.term
 	}
-	busy := a.running() && a.proc.pane == pane
-	if busy {
-		s.Put(x0+w-18, y, "► running", cType, cSide)
-	}
+	busy := pane.proc != nil
 	rows := l.panelH - 1
 	lines := pane.Lines
 	view := lines[:len(lines)-1]
@@ -627,56 +657,107 @@ func (a *App) drawPanel() {
 			view = lines
 		}
 		prefix = a.termPrompt()
-		live = PLine{prefix + a.termIn.String(), cFg}
+		live = PLine{T: prefix + pane.in.String(), C: cFg, P: len([]rune(prefix))}
 		typing = true
 	case busy:
 		prefix = last.T
-		live = PLine{last.T + a.termIn.String(), last.C}
+		live = PLine{T: last.T + pane.in.String(), C: last.C}
 		typing = true
 	default:
 		live = last
 		hasLive = last.T != ""
 	}
-	total := len(view)
+	if a.panelTab == 0 && len(view) == 0 && !hasLive {
+		s.Put(x0+2, y+1, "No output yet. Press F5 to run the current file; its output appears here.", cDim, cBg)
+		s.Put(x0+2, y+2, "Use the TERMINAL tab for shell commands.", cDim, cBg)
+	}
+	// long lines wrap to the panel width, so the text always follows the panel size
+	nr := func(t string) int {
+		n := utf8.RuneCountInString(t)
+		if w <= 0 || n <= w {
+			return 1
+		}
+		return (n + w - 1) / w
+	}
+	total := 0
+	for k := range view {
+		total += nr(view[k].T)
+	}
 	if hasLive {
-		total++
+		if typing {
+			total++
+		} else {
+			total += nr(live.T)
+		}
 	}
 	if pane.Scroll > imax(0, total-rows) {
 		pane.Scroll = imax(0, total-rows)
 	}
 	first := imax(0, total-rows-pane.Scroll)
-	for r := 0; r < rows; r++ {
-		i := first + r
-		if i >= total {
+	row := 0
+	for k := 0; k <= len(view); k++ {
+		var ln PLine
+		isLive := false
+		h := 1
+		if k < len(view) {
+			ln = view[k]
+			h = nr(ln.T)
+		} else if hasLive {
+			ln, isLive = live, true
+			if !typing {
+				h = nr(ln.T)
+			}
+		} else {
 			break
 		}
-		var ln PLine
-		isLive := hasLive && i == total-1
-		if isLive {
-			ln = live
-		} else {
-			ln = view[i]
+		if row+h <= first {
+			row += h
+			continue
 		}
-		yy := y + 1 + r
+		if row >= first+rows {
+			break
+		}
 		rs := []rune(ln.T)
-		start := 0
+		cols := lineColors(ln)
 		if isLive && typing {
-			ci := len([]rune(prefix)) + a.termIn.C
+			yy := y + 1 + row - first
+			start := 0
+			ci := len([]rune(prefix)) + pane.in.C
 			if ci >= w-1 {
 				start = ci - w + 2
 			}
 			if a.focus == fPanel && a.overlay == nil {
 				a.cx, a.cy, a.showCur = x0+ci-start, yy, true
 			}
-		}
-		fg := ln.C
-		for k := 0; k < w && start+k < len(rs); k++ {
-			c := fg
-			if isLive && typing && a.panelTab == 1 && !busy && start+k < len([]rune(prefix)) {
-				c = cType
+			for c := 0; c < w && start+c < len(rs); c++ {
+				fg := cFg
+				if start+c < len(cols) {
+					fg = cols[start+c]
+				}
+				s.Set(x0+c, yy, rs[start+c], fg, cBg)
 			}
-			s.Set(x0+k, yy, rs[start+k], c, cBg)
+			row += h
+			continue
 		}
+		for seg := 0; seg < h; seg++ {
+			rr := row + seg
+			if rr < first || rr >= first+rows {
+				continue
+			}
+			yy := y + 1 + rr - first
+			for c := 0; c < w; c++ {
+				idx := seg*w + c
+				if idx >= len(rs) {
+					break
+				}
+				fg := cFg
+				if idx < len(cols) {
+					fg = cols[idx]
+				}
+				s.Set(x0+c, yy, rs[idx], fg, cBg)
+			}
+		}
+		row += h
 	}
 }
 
@@ -746,4 +827,13 @@ func (a *App) drawStatus() {
 			a.hit(x, y, wd, 1, sg.fn)
 		}
 	}
+}
+
+// fitName shortens a name with an ellipsis so it fits in w cells.
+func fitName(n string, w int) string {
+	rs := []rune(n)
+	if w < 2 || len(rs) <= w {
+		return n
+	}
+	return string(rs[:w-1]) + "\u2026"
 }

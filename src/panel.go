@@ -16,6 +16,7 @@ import (
 type PLine struct {
 	T string
 	C Color
+	P int // >0: a typed command line, P = length of the prompt in runes
 }
 
 type Pane struct {
@@ -23,6 +24,12 @@ type Pane struct {
 	Lines  []PLine
 	Scroll int
 	cr     bool
+
+	proc *Proc // process running in this pane
+	cwd  string
+	hist []string
+	hidx int
+	in   Input
 }
 
 func NewPane(name string) *Pane { return &Pane{Name: name, Lines: []PLine{{}}} }
@@ -67,6 +74,12 @@ func (p *Pane) Println(t string, c Color) {
 	p.Lines = append(p.Lines, PLine{C: cFg})
 }
 
+// PrintCmd appends an echoed command line (prompt + command), coloured like a shell.
+func (p *Pane) PrintCmd(prompt, line string) {
+	p.Println(prompt+line, cFg)
+	p.Lines[len(p.Lines)-2].P = utf8.RuneCountInString(prompt)
+}
+
 func (p *Pane) Clear() { p.Lines, p.Scroll = []PLine{{}}, 0 }
 
 // ---- processes -------------------------------------------------------------------------
@@ -94,20 +107,7 @@ type procMsg struct {
 	code int
 }
 
-func (a *App) running() bool { return a.proc != nil }
-
-func (a *App) killProc() {
-	p := a.proc
-	if p == nil {
-		return
-	}
-	p.mu.Lock()
-	p.killed = true
-	if p.cmd != nil && p.cmd.Process != nil {
-		killTree(p.cmd)
-	}
-	p.mu.Unlock()
-}
+func (a *App) running() bool { return a.anyRunning() }
 
 func decodeOut(b []byte) string {
 	if utf8.Valid(b) {
@@ -121,11 +121,11 @@ func decodeOut(b []byte) string {
 }
 
 func (a *App) runSteps(pane *Pane, steps []step, cwd string) {
-	if a.proc != nil {
-		a.killProc()
+	if pane.proc != nil {
+		a.killPane(pane)
 	}
 	proc := &Proc{pane: pane}
-	a.proc = proc
+	pane.proc = proc
 	msgs := a.msgs
 	shell := a.shell
 	go func() {
@@ -210,10 +210,10 @@ func (a *App) runSteps(pane *Pane, steps []step, cwd string) {
 func (a *App) onProcMsg(m procMsg) {
 	p := m.proc
 	if m.done {
-		if a.proc == p {
-			a.proc = nil
+		if p.pane.proc == p {
+			p.pane.proc = nil
 		}
-		if a.focus == fPanel && a.panelTab == 0 {
+		if a.focus == fPanel && a.panelTab == 0 && p.pane == a.out {
 			a.focus = fEditor
 		}
 		if m.code == 0 {
@@ -340,9 +340,9 @@ func (a *App) runFile() {
 		a.out.Println(msg, cRed)
 		return
 	}
-	a.out.Println("> "+a.rel(d.Path), cDim)
+	a.out.Println("> "+a.rel(d.Path), cKw)
 	a.runSteps(a.out, steps, filepath.Dir(d.Path))
-	if a.running() {
+	if a.out.proc != nil {
 		a.focus = fPanel // so typed input goes to the program (Esc returns to the editor)
 	}
 }
@@ -351,34 +351,34 @@ func (a *App) runFile() {
 
 var driveRe = regexp.MustCompile(`^[A-Za-z]:$`)
 
-func (a *App) termPrompt() string { return a.cwd + "> " }
+func (a *App) termPrompt() string { return a.term.cwd + "> " }
 
 func (a *App) termEnter() {
-	line := a.termIn.String()
-	a.termIn.Set("")
-	a.term.Scroll = 0
-	if a.running() && a.proc.pane == a.term {
-		a.term.Add(line + "\n")
-		a.sendStdin(line + "\n")
+	t0 := a.term
+	line := t0.in.String()
+	t0.in.Set("")
+	t0.Scroll = 0
+	if t0.proc != nil {
+		t0.Add(line + "\n")
+		a.sendStdin(t0, line+"\n")
 		return
 	}
-	a.term.Println(a.termPrompt()+line, cFg)
+	t0.PrintCmd(a.termPrompt(), line)
 	t := strings.TrimSpace(line)
 	if t == "" {
 		return
 	}
-	if len(a.hist) == 0 || a.hist[len(a.hist)-1] != t {
-		a.hist = append(a.hist, t)
+	if len(t0.hist) == 0 || t0.hist[len(t0.hist)-1] != t {
+		t0.hist = append(t0.hist, t)
 	}
-	a.hidx = len(a.hist)
+	t0.hidx = len(t0.hist)
 	low := strings.ToLower(t)
 	switch {
 	case low == "cls" || low == "clear":
 		a.term.Clear()
 		return
 	case low == "exit":
-		a.panelVis = false
-		a.focus = fEditor
+		a.closeTerm(a.ti)
 		return
 	case low == "cd" || strings.HasPrefix(low, "cd ") || strings.HasPrefix(low, "cd\\") || strings.HasPrefix(low, "cd/") || low == "cd..":
 		arg := strings.TrimSpace(t[2:])
@@ -387,7 +387,7 @@ func (a *App) termEnter() {
 		}
 		arg = strings.Trim(arg, "\"")
 		if arg == "" {
-			a.term.Println(a.cwd, cFg)
+			a.term.Println(a.term.cwd, cFg)
 			return
 		}
 		a.changeDir(arg)
@@ -396,10 +396,7 @@ func (a *App) termEnter() {
 		a.changeDir(t + string(filepath.Separator))
 		return
 	}
-	if a.running() {
-		a.killProc()
-	}
-	a.runSteps(a.term, []step{{line: t}}, a.cwd)
+	a.runSteps(t0, []step{{line: t}}, t0.cwd)
 }
 
 func (a *App) changeDir(arg string) {
@@ -410,18 +407,18 @@ func (a *App) changeDir(arg string) {
 	}
 	np := arg
 	if !filepath.IsAbs(np) {
-		np = filepath.Join(a.cwd, arg)
+		np = filepath.Join(a.term.cwd, arg)
 	}
 	np = filepath.Clean(np)
 	if st, err := os.Stat(np); err != nil || !st.IsDir() {
 		a.term.Println("The system cannot find the path specified.", cRed)
 		return
 	}
-	a.cwd = np
+	a.term.cwd = np
 }
 
-func (a *App) sendStdin(s string) {
-	p := a.proc
+func (a *App) sendStdin(pane *Pane, s string) {
+	p := pane.proc
 	if p == nil {
 		return
 	}

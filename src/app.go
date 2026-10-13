@@ -69,12 +69,10 @@ type App struct {
 	find              *FindState
 
 	out, term *Pane
-	termIn    Input
-	hist      []string
-	hidx      int
-	cwd       string
+	terms     []*Pane
+	ti        int
+	termSeq   int
 	shell     string
-	proc      *Proc
 	msgs      chan procMsg
 
 	toast      string
@@ -103,8 +101,7 @@ func NewApp(be Backend, root string) *App {
 	a.srch = &Search{inputFoc: true}
 	a.find = &FindState{}
 	a.out = NewPane("OUTPUT")
-	a.term = NewPane("TERMINAL")
-	a.cwd = root
+	a.initTerms(root)
 	a.shell = defaultShell()
 	a.msgs = make(chan procMsg, 256)
 	return a
@@ -209,7 +206,10 @@ func (a *App) openFolder(path string) {
 		a.err("Folder not found: " + path)
 		return
 	}
-	a.root, a.cwd = abs, abs
+	a.root = abs
+	for _, t := range a.terms {
+		t.cwd = abs
+	}
 	a.exp = NewExplorer(abs)
 	a.sideVis, a.sideView = true, 0
 	a.say("Opened folder " + abs)
@@ -481,7 +481,7 @@ var keymap = []keyBind{
 	{"ctrl+z", "edit.undo"}, {"ctrl+y", "edit.redo"}, {"ctrl+shift+z", "edit.redo"},
 	{"ctrl+x", "edit.cut"}, {"ctrl+c", "edit.copy"}, {"ctrl+v", "edit.paste"}, {"shift+insert", "edit.paste"}, {"ctrl+a", "edit.selectall"},
 	{"ctrl+f", "edit.find"}, {"ctrl+h", "edit.replace"}, {"f3", "edit.findnext"}, {"shift+f3", "edit.findprev"},
-	{"ctrl+/", "edit.comment"}, {"ctrl+l", "sel.line"}, {"alt+shift+down", "sel.dup"}, {"alt+up", "sel.up"}, {"alt+down", "sel.down"},
+	{"ctrl+shift+`", "term.new"}, {"ctrl+alt+pgdn", "term.next"}, {"ctrl+alt+pgup", "term.prev"}, {"ctrl+/", "edit.comment"}, {"alt+/", "edit.comment"}, {"ctrl+alt+right", "view.sidewider"}, {"ctrl+alt+left", "view.sidenarrower"}, {"ctrl+l", "sel.line"}, {"alt+shift+down", "sel.dup"}, {"alt+up", "sel.up"}, {"alt+down", "sel.down"},
 	{"ctrl+shift+k", "sel.delete"}, {"ctrl+]", "sel.indent"}, {"ctrl+[", "sel.outdent"},
 	{"ctrl+enter", "sel.below"}, {"ctrl+shift+enter", "sel.above"},
 	{"ctrl+b", "view.sidebar"}, {"ctrl+j", "view.panel"}, {"ctrl+shift+e", "view.explorer"}, {"ctrl+shift+f", "view.search"},
@@ -753,6 +753,10 @@ func init() {
 		}
 		a.showPanel(1)
 	})
+	add("term.new", "Terminal: Create New Terminal", func(a *App) { a.newTerm() })
+	add("term.kill", "Terminal: Kill Active Terminal", func(a *App) { a.closeTerm(a.ti) })
+	add("term.next", "Terminal: Next Terminal", func(a *App) { a.nextTerm(1) })
+	add("term.prev", "Terminal: Previous Terminal", func(a *App) { a.nextTerm(-1) })
 	add("view.output", "View: Show Output", func(a *App) { a.showPanel(0) })
 	add("view.panelmax", "View: Maximize / Restore Panel", func(a *App) { a.panelVis = true; a.togglePanelMax() })
 	add("view.icons", "View: Toggle File Icons (auto / on / off)", func(a *App) {
@@ -784,8 +788,8 @@ func init() {
 	add("help.leader", "Help: Which Key (leader menu)", func(a *App) { a.openWhichKey() })
 	add("view.panelbigger", "View: Increase Panel Size", func(a *App) { a.panelVis = true; a.setPanelH(a.panelH + 3) })
 	add("view.panelsmaller", "View: Decrease Panel Size", func(a *App) { a.setPanelH(a.panelH - 3) })
-	add("view.sidewider", "View: Widen Side Bar", func(a *App) { a.sideW = imin(a.sideW+4, 60) })
-	add("view.sidenarrower", "View: Narrow Side Bar", func(a *App) { a.sideW = imax(14, a.sideW-4) })
+	add("view.sidewider", "View: Widen Side Bar", func(a *App) { a.sideW = imin(a.sideW+4, a.W/2) })
+	add("view.sidenarrower", "View: Narrow Side Bar", func(a *App) { a.sideW = imax(10, a.sideW-4) })
 	add("view.windowsize", "View: Change Window Size...", func(a *App) {
 		mk := func(w, h int) PItem {
 			return PItem{Label: itoa(w) + " x " + itoa(h), Run: func(a *App) {
@@ -811,9 +815,8 @@ func init() {
 	})
 	add("run.file", "Run: Run File", func(a *App) { a.runFile() })
 	add("run.stop", "Run: Stop", func(a *App) {
-		if a.running() {
-			a.killProc()
-		}
+		a.killPane(a.out)
+		a.killPane(a.term)
 	})
 	add("term.clear", "Terminal: Clear", func(a *App) {
 		a.term.Clear()
@@ -1423,14 +1426,14 @@ func (a *App) panelKey(ev Event) bool {
 	if a.panelTab == 1 {
 		pane = a.term
 	}
-	busy := a.running() && a.proc.pane == pane
+	busy := pane.proc != nil
 	switch ev.Key {
 	case "esc":
 		a.focus = fEditor
 		return true
 	case "ctrl+c":
 		if busy {
-			a.killProc()
+			a.killPane(pane)
 			return true
 		}
 		return false
@@ -1447,23 +1450,23 @@ func (a *App) panelKey(ev Event) bool {
 		if a.panelTab == 1 {
 			a.termEnter()
 		} else if busy {
-			line := a.termIn.String()
-			a.termIn.Set("")
+			line := pane.in.String()
+			pane.in.Set("")
 			pane.Add(line + "\n")
-			a.sendStdin(line + "\n")
+			a.sendStdin(pane, line+"\n")
 		}
 		return true
 	case "up", "down":
-		if a.panelTab == 1 && !busy && len(a.hist) > 0 {
+		if a.panelTab == 1 && !busy && len(pane.hist) > 0 {
 			if ev.Key == "up" {
-				a.hidx = imax(0, a.hidx-1)
+				pane.hidx = imax(0, pane.hidx-1)
 			} else {
-				a.hidx = imin(len(a.hist), a.hidx+1)
+				pane.hidx = imin(len(pane.hist), pane.hidx+1)
 			}
-			if a.hidx < len(a.hist) {
-				a.termIn.Set(a.hist[a.hidx])
+			if pane.hidx < len(pane.hist) {
+				pane.in.Set(pane.hist[pane.hidx])
 			} else {
-				a.termIn.Set("")
+				pane.in.Set("")
 			}
 			return true
 		}
@@ -1477,7 +1480,7 @@ func (a *App) panelKey(ev Event) bool {
 	if ev.Key == "" || ev.Key == "backspace" || ev.Key == "delete" || ev.Key == "left" || ev.Key == "right" ||
 		ev.Key == "home" || ev.Key == "end" || ev.Key == "ctrl+left" || ev.Key == "ctrl+right" || ev.Key == "ctrl+backspace" ||
 		ev.Key == "ctrl+v" || ev.Key == "shift+insert" || ev.Key == "ctrl+u" {
-		return a.termIn.Key(a, ev)
+		return pane.in.Key(a, ev)
 	}
 	return false
 }
@@ -1539,7 +1542,7 @@ func (a *App) onMouse(ev Event) {
 			return
 		}
 		if a.dragSide {
-			a.sideW = imax(14, imin(a.W/2, ev.X-l.sideX+1))
+			a.sideW = imax(10, imin(a.W/2, ev.X-l.sideX+1))
 			return
 		}
 		if a.dragging && d != nil {
@@ -1569,7 +1572,7 @@ func (a *App) onMouse(ev Event) {
 			a.dragPanel = true
 			return
 		}
-		if ev.Btn == 1 && l.sideW > 0 && ev.X == l.edX && ev.Y >= 1 && ev.Y < a.H-1 && ev.Y < l.panelY+l.panelH {
+		if ev.Btn == 1 && l.sideW > 0 && ev.X >= l.edX-1 && ev.X <= l.edX && ev.Y >= 1 && ev.Y < a.H-1 && ev.Y < l.panelY+l.panelH {
 			a.dragSide = true
 			return
 		}
